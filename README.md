@@ -6,6 +6,16 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 > 非官方项目，与游戏发行商/开发商无关。仅供个人学习与自用，请自行遵守游戏的服务条款。
 
+## ⬇️ 下载（Windows，免安装）
+
+**[点这里直接下载 MikuNonogramBot-1.0.0-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.0-win64.zip)**（约 32 MB，自带面板，不用装 Python）
+
+- 想下最新版永远用这个地址：<https://github.com/angaotian/MikuNonogramBot/releases/latest>
+- 只想看代码：[MikuNonogramBot-1.0.0-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.0-src.zip)
+- 下载后：**解压 → 双击 `启动面板.bat` → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」**
+
+> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.0**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
+
 ## 它能做什么
 
 - **自动读题**：截图 → OCR 识别行/列提示数字 → 交叉校验（行和=列和、可解、三帧一致）才开打
@@ -17,7 +27,7 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## 下载即用（推荐，不需要装 Python）
 
-1. 到本仓库的 **Releases** 页面下载 `MikuNonogramBot-<版本>-win64.zip`
+1. 下载 **`MikuNonogramBot-1.0.0-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
 2. 解压到任意目录
 3. 双击 **`启动面板.bat`** → 面板窗口打开 → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」
 
