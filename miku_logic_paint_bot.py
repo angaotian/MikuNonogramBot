@@ -3176,9 +3176,14 @@ def resolve_geometry(screen: Screen, cfg: Config, log=print,
             time.sleep(0.8)
     if cands:
         log("  候选都没通过校验（可能画面不是棋盘，或提示数字被涂灰了）")
+        log("  先不硬读：继续等画面稳定——拿没校验过的旧几何去读，会把本关误判成失败并重置")
     else:
         log("  自动定位失败")
-    return geom
+    # ★ 不再退回旧几何（2026-10-01 真机事故）：那份几何可能早就过期（换过关、换过尺寸、
+    #   改过窗口分辨率），拿它去读会得到「自洽却错」的题面 —— 行和=列和、还能解出唯一解，
+    #   于是把一关本来好好的棋盘判成失败 → 重置本关（用户看到的「涂一半被清掉」）。
+    #   返回 None 让上层继续等：宁可晚一点开工，也不误伤他看得见的进度。
+    return None
 
 
 def _bg_palette(img: Image.Image, geom: Geometry, grid: Sequence[Sequence[int]],

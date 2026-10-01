@@ -27,7 +27,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 NAME = "MikuNonogramBot"
 OWNER = "angaotian"          # GitHub 用户名（README / 发布说明里的直链要用）
 TITLE = "Miku 数织自动闯关（Hatsune Miku Logic Paint S 辅助工具）"
@@ -316,6 +316,14 @@ SOFTWARE.
 """
 
 CHANGELOG = """# 更新记录
+
+## v1.0.6（修复：不再「拿过期几何硬读」→ 不再误重置本关）
+
+- 定位失败时**不再退回旧几何去读**，而是返回「没定位到」让脚本继续等画面稳定。
+  为什么危险：那份几何可能早就过期（换过关、换过尺寸、改过窗口分辨率），拿它读出来的
+  题面会「自洽却错」——行和=列和、还能解出唯一解 —— 于是把一关本来好好的棋盘判成失败，
+  **重置本关**（用户看到的「涂到一半被清掉」）。
+  宁可晚一点开工，也不误伤你已经涂出来的进度。
 
 ## v1.0.5（修复：小棋盘（5×5 / 10×10）定位）
 
