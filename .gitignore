@@ -1,0 +1,10 @@
+# 运行/排障产物（不入库）
+__pycache__/
+*.pyc
+debug/
+build/
+dist/
+.pylibs/
+.backup/
+MikuPanel.exe
+MikuPanel.exe.new

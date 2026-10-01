@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Miku 数织 · 自动闯关控制台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#040a0d;
+    --bg1:#071219;
+    --bg2:#0b1b22;
+    --card-a:rgba(15,29,36,.92);
+    --card-b:rgba(8,17,22,.86);
+    --line:rgba(62,224,208,.14);
+    --line-2:rgba(62,224,208,.30);
+    --mint:#3ee0d0;
+    --mint-d:#2bb6ae;
+    --magenta:#ff4fa3;
+    --amber:#ffc861;
+    --red:#ff5c6c;
+    --text:#e6fbf8;
+    --muted:#6f929b;
+    --muted-2:#43606a;
+    --radius:16px;
+    --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+    --disp:"Chakra Petch","Noto Sans SC",sans-serif;
+    --body:"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--body);
+    font-size:14px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* 背景：光晕 + 数织网格 */
+  body::before{
+    content:"";
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(900px 520px at 8% -8%, rgba(62,224,208,.16), transparent 60%),
+      radial-gradient(760px 460px at 96% 4%, rgba(255,79,163,.13), transparent 62%),
+      radial-gradient(1100px 700px at 50% 120%, rgba(43,182,174,.10), transparent 60%),
+      linear-gradient(180deg,var(--bg1),var(--bg2) 55%,var(--ink));
+  }
+  body::after{
+    content:"";
+    position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background-image:
+      linear-gradient(rgba(62,224,208,.055) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(62,224,208,.055) 1px,transparent 1px);
+    background-size:46px 46px;
+    mask-image:radial-gradient(120% 90% at 50% 0%,#000 25%,transparent 78%);
+    -webkit-mask-image:radial-gradient(120% 90% at 50% 0%,#000 25%,transparent 78%);
+  }
+
+  .wrap{
+    position:relative;z-index:1;max-width:1560px;margin:0 auto;padding:20px 22px 22px;
+    height:100vh;overflow:hidden;display:flex;flex-direction:column;
+  }
+
+  /* ---------- 顶部 ---------- */
+  header.top{
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;flex:none;
+    padding-bottom:18px;margin-bottom:20px;
+    border-bottom:1px solid var(--line);
+    animation:rise .6s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .brand{display:flex;align-items:center;gap:14px;min-width:0}
+  .mark{
+    display:grid;grid-template-columns:repeat(3,7px);grid-template-rows:repeat(3,7px);
+    gap:3px;padding:9px;border-radius:11px;
+    background:linear-gradient(150deg,rgba(62,224,208,.16),rgba(255,79,163,.12));
+    border:1px solid var(--line-2);
+    box-shadow:0 0 24px -6px rgba(62,224,208,.5);
+  }
+  .mark i{background:rgba(62,224,208,.16);border-radius:2px;transition:.4s}
+  .mark i.on{background:var(--mint);box-shadow:0 0 8px rgba(62,224,208,.9)}
+  .mark i.hot{background:var(--magenta);box-shadow:0 0 9px rgba(255,79,163,.9)}
+  .brand-txt{min-width:0}
+  .brand-txt h1{
+    margin:0;font-family:var(--disp);font-weight:700;font-size:21px;
+    letter-spacing:.14em;line-height:1.15;
+    background:linear-gradient(92deg,var(--mint),#bff7f0 45%,var(--magenta));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .brand-txt p{margin:2px 0 0;font-size:11.5px;color:var(--muted);letter-spacing:.22em;text-transform:uppercase}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;
+    border:1px solid var(--line);background:rgba(9,20,25,.7);
+    font-size:12px;letter-spacing:.06em;color:var(--muted);white-space:nowrap;
+  }
+  .pill b{color:var(--text);font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted-2);flex:none}
+  .pill.live{border-color:rgba(62,224,208,.4);color:#bff7f0}
+  .pill.live .dot{background:var(--mint);box-shadow:0 0 0 0 rgba(62,224,208,.7);animation:pulse 1.8s infinite}
+  .pill.warn{border-color:rgba(255,200,97,.4)}
+  .pill.warn .dot{background:var(--amber)}
+  .pill.off .dot{background:var(--red)}
+
+  /* ---------- 布局 ---------- */
+  .main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:stretch;flex:1 1 auto;min-height:0}
+  .col{display:grid;gap:18px;min-width:0;align-content:start;min-height:0;overflow-y:auto}
+
+  .card{
+    position:relative;border-radius:var(--radius);
+    background:linear-gradient(160deg,var(--card-a),var(--card-b));
+    border:1px solid var(--line);
+    box-shadow:0 22px 44px -28px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.035);
+    padding:18px;overflow:hidden;
+    animation:rise .7s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .card::before{
+    content:"";position:absolute;top:0;left:18px;width:58px;height:2px;border-radius:2px;
+    background:linear-gradient(90deg,var(--mint),var(--magenta));
+  }
+  .card:nth-child(1){animation-delay:.05s}
+  .card:nth-child(2){animation-delay:.12s}
+  .card:nth-child(3){animation-delay:.18s}
+
+  .card-h{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+  .card-h h2{
+    margin:0;font-family:var(--disp);font-size:12px;font-weight:600;
+    letter-spacing:.2em;text-transform:uppercase;color:var(--mint);
+  }
+  .card-h h2::before{content:"// ";color:var(--muted-2)}
+  .card-h .sp{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+  .mini{
+    border:1px solid var(--line);background:rgba(9,20,25,.65);color:var(--muted);
+    border-radius:8px;padding:4px 10px;font-size:11.5px;cursor:pointer;
+    transition:.22s;font-family:var(--body);letter-spacing:.04em;
+  }
+  .mini:hover{color:var(--mint);border-color:var(--line-2);background:rgba(62,224,208,.08)}
+  .mini[aria-pressed="true"]{color:var(--mint);border-color:var(--line-2);background:rgba(62,224,208,.1)}
+
+  /* ---------- 模式 ---------- */
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .mode{
+    position:relative;text-align:left;cursor:pointer;font-family:var(--body);
+    border:1px solid var(--line);border-radius:11px;padding:10px 11px;
+    background:rgba(9,20,25,.55);color:var(--text);transition:.22s;
+  }
+  .mode:hover{border-color:var(--line-2);background:rgba(62,224,208,.06);transform:translateY(-1px)}
+  .mode .t{display:block;font-size:13px;font-weight:500;letter-spacing:.03em}
+  .mode .d{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;letter-spacing:.02em}
+  .mode.sel{
+    border-color:rgba(62,224,208,.55);
+    background:linear-gradient(150deg,rgba(62,224,208,.16),rgba(62,224,208,.04));
+    box-shadow:0 0 0 1px rgba(62,224,208,.18), 0 10px 26px -18px rgba(62,224,208,.9);
+  }
+  .mode.sel .t{color:#cefff7}
+  .mode.sel::after{
+    content:"";position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;
+    background:var(--mint);box-shadow:0 0 8px var(--mint);
+  }
+
+  /* ---------- 表单 ---------- */
+  .field{margin-top:14px;display:none}
+  .field.show{display:block}
+  .field label{display:block;font-size:11.5px;color:var(--muted);letter-spacing:.1em;margin-bottom:6px;text-transform:uppercase}
+  input[type=number],input[type=text]{
+    width:100%;background:rgba(4,10,13,.8);border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:.2s;
+  }
+  input:focus{border-color:var(--line-2);box-shadow:0 0 0 3px rgba(62,224,208,.12)}
+
+  .sws{display:grid;gap:9px;margin-top:16px}
+  .sw{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:12.5px;color:#c6e6e2}
+  .sw input{position:absolute;opacity:0;pointer-events:none}
+  .track{
+    width:38px;height:21px;border-radius:999px;background:rgba(255,255,255,.08);
+    border:1px solid var(--line);position:relative;flex:none;transition:.25s;
+  }
+  .knob{
+    position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;
+    background:var(--muted);transition:.25s cubic-bezier(.3,1.4,.5,1);
+  }
+  .sw input:checked + .track{background:rgba(62,224,208,.22);border-color:rgba(62,224,208,.5)}
+  .sw input:checked + .track .knob{left:20px;background:var(--mint);box-shadow:0 0 10px rgba(62,224,208,.85)}
+  .sw:hover .track{border-color:var(--line-2)}
+
+  /* ---------- 按钮 ---------- */
+  .actions{display:grid;grid-template-columns:1.6fr 1fr;gap:10px;margin-top:18px}
+  .btn{
+    position:relative;border:0;border-radius:12px;padding:13px 14px;cursor:pointer;
+    font-family:var(--disp);font-size:14px;font-weight:600;letter-spacing:.14em;
+    display:flex;align-items:center;justify-content:center;gap:9px;
+    transition:.22s;overflow:hidden;
+  }
+  .btn:disabled{opacity:.38;cursor:not-allowed;filter:saturate(.4)}
+  .btn-go{
+    color:#04231f;
+    background:linear-gradient(120deg,var(--mint),#8ff2e6 55%,var(--mint-d));
+    box-shadow:0 12px 30px -14px rgba(62,224,208,.95), inset 0 1px 0 rgba(255,255,255,.4);
+  }
+  .btn-go:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 18px 38px -14px rgba(62,224,208,1)}
+  .btn-stop{
+    color:#2a0416;background:linear-gradient(120deg,#ff86bd,var(--magenta));
+    box-shadow:0 12px 30px -16px rgba(255,79,163,.9), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .btn-stop:not(:disabled):hover{transform:translateY(-2px)}
+  .hint{margin:12px 0 0;font-size:11px;color:var(--muted-2);letter-spacing:.04em;line-height:1.7}
+  .hint kbd{
+    font-family:var(--mono);background:rgba(255,255,255,.06);border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px;color:#9fd8d2;font-size:10.5px;
+  }
+
+  /* ---------- 日志 ---------- */
+  .log-card{display:flex;flex-direction:column;min-height:0}
+  .log-card .card-h{flex:none}
+  .log-card .console{flex:1 1 auto;min-height:0}
+  .console{
+    font-family:var(--mono);font-size:15.5px;line-height:1.78;
+    overflow-y:auto;padding:16px 20px;
+    border:1px solid var(--line-2);border-radius:12px;
+    background:linear-gradient(180deg,rgba(3,9,12,.94),rgba(6,14,18,.88));
+    scrollbar-width:thin;scrollbar-color:rgba(62,224,208,.4) transparent;
+    box-shadow:inset 0 0 46px -20px rgba(62,224,208,.55), 0 20px 44px -30px rgba(0,0,0,.9);
+  }
+  .console::-webkit-scrollbar{width:12px}
+  .console::-webkit-scrollbar-thumb{background:rgba(62,224,208,.3);border-radius:12px}
+  .console::-webkit-scrollbar-track{background:transparent}
+  .ln{
+    display:block;white-space:pre-wrap;word-break:break-word;
+    padding:1.5px 0;color:#8fb3ba;animation:fadein .3s ease both;
+  }
+  .ln.sys{color:#5f8f96}
+  .ln.head{color:var(--mint);font-weight:600;letter-spacing:.06em}
+  .ln.err{color:var(--red)}
+  .ln.warn{color:var(--amber)}
+  .ln.ok{color:#7ef0c8}
+  .ln.step{color:#c9f5ef}
+  .ln.art{color:#4fd8c8;letter-spacing:.02em}
+  .ln.art .on{color:var(--magenta);font-weight:600}
+
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(62,224,208,.6)}70%{box-shadow:0 0 0 7px rgba(62,224,208,0)}100%{box-shadow:0 0 0 0 rgba(62,224,208,0)}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes fadein{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark" id="mark"></div>
+      <div class="brand-txt">
+        <h1>MIKU LOGIC PAINT</h1>
+        <p>Auto Solver Console</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <span class="pill" id="pill-win"><span class="dot"></span>游戏窗口：<b id="win-title">检测中…</b></span>
+      <span class="pill off" id="pill-net"><span class="dot"></span><b id="net-txt">连接中</b></span>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- 左列 -->
+    <div class="col">
+      <section class="card">
+        <div class="card-h"><h2>任务</h2></div>
+        <div class="modes" id="modes">
+          <button class="mode" data-mode="single"><span class="t">单关挑战</span><span class="d">只打当前这一关</span></button>
+          <button class="mode sel" data-mode="loop"><span class="t">连续闯关</span><span class="d">自动一关接一关（含特别谜题）</span></button>
+          <button class="mode" data-mode="dry"><span class="t">演练识别</span><span class="d">只求解不点击</span></button>
+          <button class="mode" data-mode="calibrate"><span class="t">重新校准</span><span class="d">自动定位棋盘</span></button>
+          <button class="mode" data-mode="probe"><span class="t">画面诊断</span><span class="d">标注图存 debug/</span></button>
+          <button class="mode" data-mode="selftest"><span class="t">离线自检</span><span class="d">无需游戏</span></button>
+        </div>
+
+        <div class="field show" id="f-rounds">
+          <label for="i-rounds">闯关数量（0 = 一直打）</label>
+          <input type="number" id="i-rounds" value="0" min="0" step="1" />
+        </div>
+
+        <div class="sws">
+          <label class="sw"><input type="checkbox" id="t-mark" checked /><span class="track"><span class="knob"></span></span><span class="sw-t">右键打叉标记空格（过关更稳）</span></label>
+          <label class="sw"><input type="checkbox" id="t-confirm" /><span class="track"><span class="knob"></span></span><span class="sw-t">每次填格前需按回车确认</span></label>
+          <label class="sw" id="w-manual" style="display:none"><input type="checkbox" id="t-manual" /><span class="track"><span class="knob"></span></span><span class="sw-t">校准时用鼠标手动框选（F8 结束）</span></label>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-go" id="btn-go">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72L19 12z"/></svg>开始运行
+          </button>
+          <button class="btn btn-stop" id="btn-stop" disabled>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>停止
+          </button>
+        </div>
+        <p class="hint">
+          紧急停止：<kbd>F8</kbd> <kbd>Esc</kbd> 或把鼠标甩到屏幕左上角<br />
+          运行前把游戏停在棋盘或关卡列表都行：普通谜题（黄卡片）和特别谜题（5×5「?」方块阵）自动识别。<br />
+          要强制指定，改 miku_bot_config.json 里的 <kbd>list_mode</kbd>（auto / normal / special）。
+        </p>
+      </section>
+
+    </div>
+
+    <!-- 右列：运行日志（整列，随窗口高度自适应） -->
+    <section class="card log-card">
+      <div class="card-h">
+        <h2>运行日志</h2>
+        <span class="sp">
+          <button class="mini" id="btn-scroll" aria-pressed="true">自动滚动</button>
+          <button class="mini" id="btn-clear">清空</button>
+        </span>
+      </div>
+      <div class="console" id="console"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  // ---- 装饰：logo 小网格 ----
+  (function(){
+    var pat=[1,0,1,0,1,0,1,0,1], m=$("mark");
+    for(var i=0;i<9;i++){
+      var el=document.createElement("i");
+      if(pat[i]) el.className = (i===4?"hot":"on");
+      m.appendChild(el);
+    }
+  })();
+
+  var mode = "loop";
+  var lastSeq = 0;
+  var autoScroll = true, running = false;
+  var netFails = 0;
+
+  // ---- 模式切换 ----
+  var modes = $("modes");
+  modes.addEventListener("click", function(e){
+    var b = e.target.closest(".mode");
+    if(!b) return;
+    Array.prototype.forEach.call(modes.children, function(x){ x.classList.remove("sel"); });
+    b.classList.add("sel");
+    mode = b.dataset.mode;
+    $("f-rounds").classList.toggle("show", mode === "loop");
+    $("w-manual").style.display = (mode === "calibrate") ? "flex" : "none";
+  });
+
+  // ---- 开关按钮 ----
+  function toggleBtn(btn, on){
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  $("btn-scroll").onclick = function(){ autoScroll = !autoScroll; toggleBtn(this, autoScroll); if(autoScroll) scrollDown(); };
+  $("btn-clear").onclick = function(){
+    fetch("/api/clear", {method:"POST"});
+    $("console").innerHTML = "";
+  };
+
+  // ---- 日志渲染 ----
+  var consoleEl = $("console");
+  function classify(t){
+    if(t.indexOf("[面板]") === 0) return "sys";
+    if(t.charAt(0) === "╔" || t.charAt(0) === "╚" || t.charAt(0) === "║") return "sys";
+    if(t.indexOf("[中止]") >= 0 || t.indexOf("失败") >= 0 || t.indexOf("错误") >= 0) return "err";
+    if(t.indexOf("完成") >= 0 || t.indexOf("成功") >= 0 || t.indexOf("已自动") >= 0) return "ok";
+    if(t.indexOf("警告") >= 0 || t.indexOf("请") >= 0 || t.indexOf("等待") >= 0) return "warn";
+    if(t.charAt(0) === "=") return "head";
+    if(t.charAt(0) === ">") return "step";
+    return "";
+  }
+  var ART_RE = /^\s*[\d\s]*\|[\[\]\s]*\|\s*$/;
+  function esc(s){
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function addLine(line){
+    var t = line.text || "";
+    var el = document.createElement("span");
+    var cls = "ln ";
+    if(ART_RE.test(t)){ cls += "art"; el.className = cls; el.innerHTML = esc(t).replace(/\[\]/g,'<b class="on">[]</b>'); }
+    else { cls += classify(t); el.className = cls; el.textContent = t === "" ? " " : t; }
+    consoleEl.appendChild(el);
+    while(consoleEl.childNodes.length > 1600){ consoleEl.removeChild(consoleEl.firstChild); }
+  }
+  function scrollDown(){ consoleEl.scrollTop = consoleEl.scrollHeight; }
+
+  // ---- 网络 ----
+  function setNet(ok){
+    var pill = $("pill-net");
+    if(ok){ pill.className = "pill live"; $("net-txt").textContent = "已连接"; }
+    else { pill.className = "pill off"; $("net-txt").textContent = "连接断开"; }
+  }
+
+  function applyState(st){
+    running = !!st.running;
+    $("btn-go").disabled = running;
+    $("btn-stop").disabled = !running;
+
+    var pwin = $("pill-win");
+    if(st.bot_found){ pwin.className = "pill live"; $("win-title").textContent = st.window_title || "已找到"; }
+    else { pwin.className = "pill warn"; $("win-title").textContent = "未找到"; }
+  }
+
+  function poll(){
+    var p1 = fetch("/api/state").then(function(r){ return r.json(); }).then(function(st){
+      netFails = 0; setNet(true); applyState(st);
+    });
+    var p2 = fetch("/api/logs?since=" + lastSeq).then(function(r){ return r.json(); }).then(function(d){
+      (d.lines || []).forEach(addLine);
+      lastSeq = d.seq || lastSeq;
+      if(autoScroll) scrollDown();
+    });
+    Promise.all([p1, p2]).catch(function(){
+      netFails++;
+      if(netFails >= 3) setNet(false);
+    });
+  }
+
+  // ---- 启停 ----
+  function collect(){
+    return {
+      mode: mode,
+      rounds: parseInt($("i-rounds").value || "0", 10) || 0,
+      mark_empty: $("t-mark").checked,
+      confirm: $("t-confirm").checked,
+      manual: $("t-manual").checked
+    };
+  }
+  $("btn-go").onclick = function(){
+    var btn = this;
+    btn.disabled = true;
+    $("console").innerHTML = "";
+    lastSeq = 0;
+    fetch("/api/clear", {method:"POST"}).then(function(){
+      return fetch("/api/start", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(collect())
+      });
+    }).then(function(r){ return r.json(); }).then(function(res){
+      if(!res.ok){
+        btn.disabled = false;
+        var el = document.createElement("span");
+        el.className = "ln err";
+        el.textContent = "[面板] 启动失败：" + (res.error || "未知原因");
+        consoleEl.appendChild(el);
+        scrollDown();
+      }
+      poll();
+    }).catch(function(){
+      btn.disabled = false;
+    });
+  };
+  $("btn-stop").onclick = function(){
+    this.disabled = true;
+    fetch("/api/stop", {method:"POST"}).then(function(){ poll(); });
+  };
+
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){
+      if(!$("btn-go").disabled) $("btn-go").click();
+    }
+  });
+
+  poll();
+  setInterval(poll, 700);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "window_keywords": [
+    "Logic Paint",
+    "Hatsune",
+    "Miku"
+  ],
+  "next_button": null,
+  "click_hold_ms": 16.0,
+  "click_interval_ms": 10.0,
+  "fills_per_pause": 24,
+  "pause_ms": 40.0,
+  "max_read_attempts": 3,
+  "ocr_workers": 8,
+  "solver_time_limit": 20.0,
+  "paint_diff_threshold": 8.0,
+  "max_reclick_cells": 5,
+  "next_button_delay": 1.4,
+  "clear_wait_timeout": 30.0,
+  "auto_confirm": true,
+  "failsafe_corner": true,
+  "mark_empty": false,
+  "list_mode": "auto",
+  "geom": {
+    "x1": 876.9139800829455,
+    "y1": 385.0614284207278,
+    "x2": 1516.9856543784308,
+    "y2": 1024.9794580795117,
+    "cols": 15,
+    "rows": 15,
+    "row_slots": null,
+    "col_slots": null
+  }
+}
