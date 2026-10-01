@@ -1736,6 +1736,15 @@ def _read_clue_axis(img: Image.Image, geom: Geometry, axis: str,
                     if axis == "R":
                         ba = max(0, a0 - 1)
                         sblobs = _digit_blobs(band[:, ba:a1 + 2], 0, thr)
+                        # 灰字兜底（2026-10-01 加）：游戏会把「已满足」的提示数字整块染成灰
+                        # （实测字 165~215、底色 231）。而条带级 thr 会被混进条带的深色界面
+                        # 拉到 ~142 → 灰字全在阈值以下：切不出子块、整块 OCR 也读不出，
+                        # 于是整条提示从读数里消失（真机 20260930_140353 第7/8列 的开头
+                        # 「11」就是这么丢的：存档 [11,1,2,1] 变成 [1,2,1]，253 ≠ 231 判死）。
+                        # 严格阈值切不出 2~3 块时，用「明显比底色暗」的浅阈值再切一次；
+                        # 切出来之后子块走「细窄笔画=1」那条既有规则，两个 1 就能拼回 11。
+                        if not (2 <= len(sblobs) <= 3):
+                            sblobs = _digit_blobs(band[:, ba:a1 + 2], 0, light_thr)
                         if 2 <= len(sblobs) <= 3:
                             for sa0, sa1, sp0, sp1, _ in sblobs:
                                 ga0, ga1 = ba + sa0, ba + sa1
@@ -1746,6 +1755,9 @@ def _read_clue_axis(img: Image.Image, geom: Geometry, axis: str,
                     else:
                         ba, bp = max(0, a0 - 1), max(0, p0 - 1)
                         sblobs = _digit_blobs(band[bp:p1 + 2, ba:a1 + 2].T, 0, thr)
+                        # 同上：灰字兜底（见行提示那一段的说明）
+                        if not (2 <= len(sblobs) <= 3):
+                            sblobs = _digit_blobs(band[bp:p1 + 2, ba:a1 + 2].T, 0, light_thr)
                         if 2 <= len(sblobs) <= 3:
                             for sa0, sa1, _sp0, _sp1, _ in sblobs:
                                 gp0, gp1 = bp + sa0, bp + sa1
