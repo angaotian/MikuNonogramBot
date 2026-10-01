@@ -136,16 +136,22 @@ def main() -> int:
     ap.add_argument("--title", default="")
     ap.add_argument("--notes", default="", help="Release 正文文件（markdown）")
     ap.add_argument("--src-dir", default="", help="含 origin 的源码树目录（默认找 dist/*-src）")
+    ap.add_argument("--repo", default="", help="owner/repo；不给就从 --src-dir 的 origin 猜")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--verify-only", action="store_true",
                     help="只核对远端：Release 正文/附件 + 每个附件真去 HEAD 一次下载链接")
+    ap.add_argument("--replace", action="store_true",
+                    help="同名附件已存在时先删掉再传（默认是跳过）")
     ap.add_argument("assets", nargs="*", help="要上传的文件")
     args = ap.parse_args()
 
     src = Path(args.src_dir) if args.src_dir else next(iter(sorted((ROOT / "dist").glob("*-src"))), None)
-    if not src:
-        raise SystemExit("找不到 dist/*-src 目录（用 --src-dir 指定）")
-    repo = repo_from_origin(src)
+    if args.repo:
+        repo = args.repo
+    else:
+        if not src:
+            raise SystemExit("找不到 dist/*-src 目录（用 --src-dir 指定，或直接给 --repo owner/name）")
+        repo = repo_from_origin(src)
     title = args.title or args.tag
     body = Path(args.notes).read_text(encoding="utf-8") if args.notes else ""
     assets = [Path(a) for a in args.assets]
@@ -208,8 +214,11 @@ def main() -> int:
     have = {a["name"]: a for a in rel.get("assets", [])}
     for a in assets:
         if a.name in have:
-            print("附件已存在，跳过：%s" % a.name)
-            continue
+            if not args.replace:
+                print("附件已存在，跳过：%s（要覆盖加 --replace）" % a.name)
+                continue
+            st, _ = api("DELETE", "/repos/%s/releases/assets/%d" % (repo, have[a.name]["id"]), token)
+            print("已删除旧附件：%s（HTTP %s）" % (a.name, st))
         ok, detail = upload_asset(rid, a, token, repo)
         if ok:
             print("上传成功：%s" % detail)
