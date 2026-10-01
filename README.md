@@ -8,13 +8,13 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## ⬇️ 下载（Windows，免安装）
 
-**[点这里直接下载 MikuNonogramBot-1.0.2-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.2-win64.zip)**（约 32 MB，自带面板，不用装 Python）
+**[点这里直接下载 MikuNonogramBot-1.0.3-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.3-win64.zip)**（约 32 MB，自带面板，不用装 Python）
 
 - 想下最新版永远用这个地址：<https://github.com/angaotian/MikuNonogramBot/releases/latest>
-- 只想看代码：[MikuNonogramBot-1.0.2-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.2-src.zip)
+- 只想看代码：[MikuNonogramBot-1.0.3-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.3-src.zip)
 - 下载后：**解压 → 双击 `启动面板.bat` → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」**
 
-> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.2**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
+> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.3**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
 
 ## 长什么样
 
@@ -43,7 +43,7 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## 下载即用（推荐，不需要装 Python）
 
-1. 下载 **`MikuNonogramBot-1.0.2-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
+1. 下载 **`MikuNonogramBot-1.0.3-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
 2. 解压到任意目录
 3. 双击 **`启动面板.bat`** → 面板窗口打开 → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」
 
