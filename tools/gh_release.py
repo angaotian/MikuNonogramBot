@@ -142,6 +142,8 @@ def main() -> int:
                     help="只核对远端：Release 正文/附件 + 每个附件真去 HEAD 一次下载链接")
     ap.add_argument("--replace", action="store_true",
                     help="同名附件已存在时先删掉再传（默认是跳过）")
+    ap.add_argument("--delete", action="store_true",
+                    help="删掉这个 tag 的 Release（连附件一起；仓库里的 git tag 不动）")
     ap.add_argument("assets", nargs="*", help="要上传的文件")
     args = ap.parse_args()
 
@@ -167,6 +169,20 @@ def main() -> int:
         return 0
 
     token = get_token()
+
+    if args.delete:
+        st, rel = api("GET", "/repos/%s/releases/tags/%s" % (repo, args.tag), token)
+        if st != 200:
+            print("没找到 %s 的 Release（HTTP %s），不用删。" % (args.tag, st))
+            return 0
+        st2, res = api("DELETE", "/repos/%s/releases/%d" % (repo, rel["id"]), token)
+        ok = st2 in (200, 204)
+        print("删除 Release %s：HTTP %s %s"
+              % (args.tag, st2, (res.get("message", "") if isinstance(res, dict) else "")))
+        if ok:
+            print("（仓库里的 git tag %s 没动；要一起删就 git push --delete origin %s）"
+                  % (args.tag, args.tag))
+        return 0 if ok else 2
 
     if args.verify_only:
         st, rel = api("GET", "/repos/%s/releases/tags/%s" % (repo, args.tag), token)

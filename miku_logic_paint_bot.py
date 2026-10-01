@@ -1004,14 +1004,58 @@ def _flatten_border(arr: np.ndarray) -> np.ndarray:
 
 def auto_detect_candidates(img: Image.Image, limit: int = 4) -> List[Geometry]:
     """
-    全自动定位棋盘：先在纵向找网格（提示条带会加强该方向信号），
+    全自动定位棋盘（**只看整幅画面**）：先在纵向找网格（提示条带会加强该方向信号），
     再限定在棋盘高度范围内找横向网格。格子数据实测线数算出并吸附到
     游戏支持的 5/10/20 标准尺寸，两端也各给一种「漏了最外一条线」的对齐方式。
+
+    ⚠ 这个函数「扫不出棋盘」本身是一条判据（特别谜题列表就是一个 5×5 方块阵，
+    判定「这屏不是棋盘」靠它返回空）——所以**局部窗口兜底不能放在这里**，
+    见 auto_detect_candidates_local（只给取棋盘那条路用，候选还要过提示数字校验）。
     """
     arr = np.asarray(img.convert("L")).astype(np.float32)
     if arr.size == 0:
         return []
-    arr = _flatten_border(arr)
+    return _detect_lattice(_flatten_border(arr), limit)
+
+
+def auto_detect_candidates_local(img: Image.Image, limit: int = 4) -> List[Geometry]:
+    """
+    整幅扫不到时的兜底：换若干个「画面局部窗口」再扫一遍。
+
+    为什么要（2026-10-01 真机 Lv1 事故）：整幅平均会把棋盘信号稀释掉——Lv1 的 5×5
+    棋盘只占画面一小块，又被房间/人物立绘的线稿盖着，实测整幅 `auto_detect_candidates`
+    返回空，而任何局部窗口都能稳定扫出格距 132.2~132.6px 的 5×5 网。
+    只给「取棋盘」那条路当兜底用：那里的候选还要逐条读提示数字校验（`_adopt_candidate`），
+    特别谜题列表这种没有提示数字的画面过不了校验，不会被误当成棋盘。
+    """
+    arr = _flatten_border(np.asarray(img.convert("L")).astype(np.float32))
+    if arr.size == 0:
+        return []
+    out: List[Geometry] = []
+    H, W = arr.shape
+    for x0f, x1f, y0f, y1f in ((0.2, 0.8, 0.15, 0.85), (0.3, 0.9, 0.1, 0.9),
+                               (0.5, 1.0, 0.0, 1.0), (0.25, 0.75, 0.25, 0.75)):
+        x0, x1, y0, y1 = int(W * x0f), int(W * x1f), int(H * y0f), int(H * y1f)
+        sub = arr[y0:y1, x0:x1]
+        if sub.size < 400:
+            continue
+        for g in _detect_lattice(sub, limit):
+            g2 = Geometry(x1=g.x1 + x0, y1=g.y1 + y0, x2=g.x2 + x0, y2=g.y2 + y0,
+                          cols=g.cols, rows=g.rows)
+            if all(abs(g2.cell_w - c.cell_w) > 0.5 or g2.rows != c.rows or g2.cols != c.cols
+                   or abs(g2.x1 - c.x1) > 2 or abs(g2.y1 - c.y1) > 2 for c in out):
+                out.append(g2)
+        if len(out) >= limit:
+            break
+    return out[:limit]
+
+
+def _detect_lattice(arr: np.ndarray, limit: int = 4) -> List[Geometry]:
+    """
+    在**给定的灰度数组**上做格线扫描（auto_detect_candidates 的全幅那一遍 + 局部窗口那一遍都调它）。
+    先在纵向找网格（提示条带会加强该方向信号），再限定在棋盘高度范围内找横向网格。
+    格子数据实测线数算出并吸附到游戏支持的 5/10/20 标准尺寸，两端也各给一种「漏了最外一条线」的对齐方式。
+    """
     y_found = _scan_lattice(_narrow_dip(arr.mean(axis=1)))
     if y_found is None:
         return []
@@ -3076,6 +3120,12 @@ def resolve_geometry(screen: Screen, cfg: Config, log=print,
     for attempt in range(1, max(1, attempts) + 1):
         img = screen.grab_client()
         cands = auto_detect_candidates(img)
+        if not cands:
+            # ★ 整幅扫不到棋盘时，用「局部窗口」再扫一遍（2026-10-01 真机 Lv1 事故：
+            #   5×5 棋盘小、又被房间/人物立绘盖住，整幅平均把信号稀释掉了）。
+            #   这里的结果仍要逐条过下面的 _adopt_candidate（读提示数字校验），
+            #   所以特别谜题列表那种没有提示数字的画面不会被当成棋盘。
+            cands = auto_detect_candidates_local(img)
         if geom is not None:
             for c in cands:
                 if _same_board(c, geom):
