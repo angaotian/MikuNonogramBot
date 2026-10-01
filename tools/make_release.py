@@ -29,6 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = "1.0.0"
 NAME = "MikuNonogramBot"
+OWNER = "angaotian"          # GitHub 用户名（README / 发布说明里的直链要用）
 TITLE = "Miku 数织自动闯关（Hatsune Miku Logic Paint S 辅助工具）"
 
 # 两件套都带的文件
@@ -71,6 +72,32 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 > 非官方项目，与游戏发行商/开发商无关。仅供个人学习与自用，请自行遵守游戏的服务条款。
 
+## ⬇️ 下载（Windows，免安装）
+
+**[点这里直接下载 MikuNonogramBot-{version}-win64.zip](https://github.com/{owner}/{name}/releases/latest/download/{name}-{version}-win64.zip)**（约 32 MB，自带面板，不用装 Python）
+
+- 想下最新版永远用这个地址：<https://github.com/{owner}/{name}/releases/latest>
+- 只想看代码：[{name}-{version}-src.zip](https://github.com/{owner}/{name}/releases/latest/download/{name}-{version}-src.zip)
+- 下载后：**解压 → 双击 `启动面板.bat` → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」**
+
+> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v{version}**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
+
+## 长什么样
+
+**控制面板**（不想开面板也可以纯命令行跑）：
+
+![控制面板](docs/images/panel.png)
+
+**它自己怎么跑完一关**（全自动，不用你动手）：
+
+![三步流程](docs/images/flow.png)
+
+**两种关卡列表它都认得**（普通谜题 / 特别谜题，不用你切换）：
+
+![两种关卡列表](docs/images/list-modes.png)
+
+> 上面都是示意图，用脚本画的（`tools/make_readme_images.py`），不是游戏截图——游戏画面与美术版权归厂商所有。
+
 ## 它能做什么
 
 - **自动读题**：截图 → OCR 识别行/列提示数字 → 交叉校验（行和=列和、可解、三帧一致）才开打
@@ -82,7 +109,7 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## 下载即用（推荐，不需要装 Python）
 
-1. 到本仓库的 **Releases** 页面下载 `{name}-<版本>-win64.zip`
+1. 下载 **`{name}-{version}-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
 2. 解压到任意目录
 3. 双击 **`启动面板.bat`** → 面板窗口打开 → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」
 
@@ -106,6 +133,58 @@ python miku_logic_paint_bot.py --dry-run      :: 只识别+求解，不点游戏
 | Pillow / numpy / pytesseract | `pip install -r requirements.txt` |
 | **Tesseract-OCR** | 装在 `C:\\\\Program Files\\\\Tesseract-OCR\\\\` 或加入 PATH（脚本会自动找） |
 | WebView2 运行时 | 只有面板 GUI 需要；命令行不需要 |
+
+## 如何使用（一步一步）
+
+### A. 用面板（推荐）
+
+1. 解压 → 双击 **`启动面板.bat`**（面板会自检，必要时自动把源码同步进 exe）
+2. 打开游戏，把窗口**切到前台**（别最小化、别被别的窗口盖住）
+3. 停在**关卡列表**或**某一关的棋盘**上都行，脚本两种都认
+4. 面板上点「**连续闯关**」（只跑一关就点「跑一关」）→ 日志开始刷
+5. 想停：点「停止」，或按 **F8 / Esc**，或把鼠标**甩到屏幕左上角**
+6. 第一次跑发现定位不准：关掉游戏侧的缩放/多余窗口，或跑一次 `python miku_logic_paint_bot.py --calibrate`
+
+### B. 用命令行
+
+```bat
+python miku_logic_paint_bot.py --selftest    :: 先自检（不用开游戏）
+python miku_logic_paint_bot.py --loop        :: 连续闯关
+python miku_logic_paint_bot.py --dry-run     :: 只识别+求解，不点游戏（想先看它读得准不准）
+```
+
+### C. 它什么时候会「不动手」（安全设计）
+
+| 情况 | 它的反应 |
+|---|---|
+| 认不出画面（既不是棋盘也不是列表） | **一个字都不点**，只等着；不会乱点把画面点乱 |
+| 读题对不上（行和≠列和 / 无解 / 三帧不一致） | 先重置本关再读一次；第二次还读不通 → **跳过这关去打别的**（跳过前会确认这一关盘面是干净的） |
+| 填色过程中自查没过 | 立刻停手并报出是哪一行/列对不上，不会硬着头皮涂完 |
+| 关卡列表布局不认识 | 当作「不是列表」，不点击（两种布局的坐标完全不同，点错会点到棋盘上） |
+
+## 规则
+
+### 游戏规则（它替你自动做的那些事）
+
+| 操作 | 说明 |
+|---|---|
+| 左键点格子 | 给**空格**涂色（青色）。对「已经有内容」的格子无效——所以一旦某格被误标就涂不上了 |
+| 右键点格子 | 给**空格**打叉（灰紫叉），表示这格该空着 |
+| 提示数字 | 每行（左侧）与每列（上方）给一串数字，表示这一行/列里**连续涂色块**的长度与顺序，例如 `3 1 2` |
+| 怎么算对 | 某一行/列**所有该涂的格子都涂满**时，游戏会把这行/列的提示数字**变灰**——脚本就拿这个当判官 |
+| 过关 | 整幅棋盘涂对 → 弹出「关卡完成」→ 回到关卡列表 |
+| 特别谜题 | 8 个 Lv 页，每页 25 格拼图，每一格是一道小谜题；解开一格就露出那部分画作 |
+| 任务 | 每格 3 个任务：解开谜题 / 无提示 / 无失误 |
+
+### 使用规则（请照着来，否则会失败或伤到你自己的存档）
+
+1. **游戏窗口保持在前台**，别最小化、别被挡住——它是「看屏幕 + 点鼠标」，看不见就读错。
+2. **跑的时候别抢鼠标键盘**（除了 F8/Esc 停止）：它会自己移鼠标点格子，你一动鼠标就会点歪。
+3. **同一台机器、同一套显示设置**：换了分辨率 / 屏幕缩放 / DPI 之后，重新校准一次（`--calibrate`）。
+4. **别在它跑的时候手动涂格**：它按自己解出来的答案涂，你手改一格它下一批自查就会失败停下（不会涂花，但这一关得重来）。
+5. **它只做三件事**：截屏识别、移鼠标点击、写本机日志。**不读游戏内存、不改游戏文件、不联网上传**。
+6. **自动化可能违反游戏的服务条款**：这是给单人离线小游戏写的自用工具，用不用、风险多大请自己判断（见下面免责声明）。
+7. **它会往 `debug/` 存现场截图**（读不通时的画面，只在本机），里面可能有你的桌面内容——**分享这些截图前先看一眼**。
 
 ## 命令行参数
 
@@ -240,6 +319,11 @@ CHANGELOG = """# 更新记录
 
 RELEASE_NOTES = """## 下载
 
+| 文件 | 直链 |
+|---|---|
+| 运行包（含面板 exe，免安装） | <https://github.com/{owner}/{name}/releases/download/v{version}/{name}-{version}-win64.zip> |
+| 源码包 | <https://github.com/{owner}/{name}/releases/download/v{version}/{name}-{version}-src.zip> |
+
 | 文件 | 给谁 |
 |---|---|
 | `{name}-{version}-win64.zip` | **想直接用**：解压 → 双击 `启动面板.bat`。自带面板 exe，不用装 Python |
@@ -335,14 +419,29 @@ def build_src_package(dst: Path, version: str, do_git: bool) -> None:
         print("  源码树：%s" % dst)
 
 
+def render_images(dst: Path) -> None:
+    """给 README 生成示意图（调 tools/make_readme_images.py，纯 PIL 画的）。"""
+    out = dst / "docs" / "images"
+    script = Path(__file__).resolve().parent / "make_readme_images.py"
+    r = subprocess.run([sys.executable, str(script), str(out)], cwd=str(ROOT),
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print("  [警告] 示意图没生成：%s" % (r.stderr or r.stdout)[-200:])
+        return
+    print("  示意图：%d 张 → docs/images/" % len(list(out.glob("*.png"))))
+
+
 def write_common_docs(dst: Path, version: str) -> None:
-    (dst / "README.md").write_text(README.format(title=TITLE, name=NAME), encoding="utf-8")
+    render_images(dst)
+    (dst / "README.md").write_text(
+        README.format(title=TITLE, name=NAME, owner=OWNER, version=version), encoding="utf-8")
     (dst / "LICENSE").write_text(LICENSE.replace("{year}", "2026").replace("{name}", NAME),
                                  encoding="utf-8")
     (dst / "CHANGELOG.md").write_text(CHANGELOG.format(version=version), encoding="utf-8")
     docs = dst / "docs"
     docs.mkdir(exist_ok=True)
-    (docs / "发布说明.md").write_text(RELEASE_NOTES.format(name=NAME, version=version),
+    (docs / "发布说明.md").write_text(
+        RELEASE_NOTES.format(name=NAME, owner=OWNER, version=version),
                                       encoding="utf-8")
     dev = ROOT / "README.md"
     if dev.exists():
