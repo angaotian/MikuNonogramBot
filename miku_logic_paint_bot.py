@@ -1028,23 +1028,44 @@ def auto_detect_candidates_local(img: Image.Image, limit: int = 4) -> List[Geome
     只给「取棋盘」那条路当兜底用：那里的候选还要逐条读提示数字校验（`_adopt_candidate`），
     特别谜题列表这种没有提示数字的画面过不了校验，不会被误当成棋盘。
     """
-    arr = _flatten_border(np.asarray(img.convert("L")).astype(np.float32))
+    # ⚠ 这里**不能**做 _flatten_border（2026-10-01 实测）：那个「抹平画面最外圈」是给整幅扫描
+    #   用的——防止窗口边框/OSD 长直线被当成棋盘线（会把 5×5 认成 6×6）。但窗口扫的是画面
+    #   **内部**的一块，本来就不含那些外框；抹平只会把窗口自己那几行/列的真实内容覆盖成复制值，
+    #   反而把好好的棋盘抹没了。用户那台机器上就是这条：同一个窗口「不抹平」扫出 5×5@54.6px，
+    #   「抹平」后返回空 → 四个窗口全空 → 整屏「自动定位失败」。
+    arr = np.asarray(img.convert("L")).astype(np.float32)
     if arr.size == 0:
         return []
     out: List[Geometry] = []
     H, W = arr.shape
-    for x0f, x1f, y0f, y1f in ((0.2, 0.8, 0.15, 0.85), (0.3, 0.9, 0.1, 0.9),
-                               (0.5, 1.0, 0.0, 1.0), (0.25, 0.75, 0.25, 0.75)):
-        x0, x1, y0, y1 = int(W * x0f), int(W * x1f), int(H * y0f), int(H * y1f)
-        sub = arr[y0:y1, x0:x1]
-        if sub.size < 400:
-            continue
-        for g in _detect_lattice(sub, limit):
-            g2 = Geometry(x1=g.x1 + x0, y1=g.y1 + y0, x2=g.x2 + x0, y2=g.y2 + y0,
-                          cols=g.cols, rows=g.rows)
-            if all(abs(g2.cell_w - c.cell_w) > 0.5 or g2.rows != c.rows or g2.cols != c.cols
-                   or abs(g2.x1 - c.x1) > 2 or abs(g2.y1 - c.y1) > 2 for c in out):
-                out.append(g2)
+    # ★ 用「确定性平铺」而不是挑几个固定位置（2026-10-01 真机 1280×720 事故）。
+    #   原来那四个窗口全是「中间 / 右中」：用户那台机器上棋盘在**右下**
+    #   （x 70~91%、y 38~75%），结果要么被窗口边界切成两半、要么把顶部信息卡和
+    #   压在上面的深色窗口一起圈进来 → 四个窗口全部扫描失败 → 整屏报「自动定位失败」，
+    #   而他明明看得见棋盘。棋盘落点随窗口尺寸/关卡排版变，**任何写死的窗口组合都会
+    #   在某个分辨率下失手**；平铺成 0.6×0.6、步进 0.2 的 9 个窗口，任意位置、
+    #   任意尺寸（占画面 40% 以上）的棋盘至少完整落在一个窗口里。
+    #   多出来的候选不会有害：它们在取棋盘那条路上照样要逐条过 `_adopt_candidate`
+    #   的「读提示数字」校验，过不了的直接丢弃（特别谜题列表那种画面也过不了）。
+    #   顺序上先扫靠下的窗口：顶部是游戏自己的信息卡/HUD，靠下的窗口更干净，
+    #   真棋盘更可能排在前面（校验是逐条做的，越早命中越省时间）。
+    #   步进取 0.1（窗口 0.6）：0.2 的粒度实测不够——用户那台机器上棋盘上沿在 y≈0.38 处，
+    #   而干净区从 y≈0.33 才开始，0.2 的步进只给出 y=0.2 / 0.4 两个选择，
+    #   一个把顶部信息卡圈进来、一个把棋盘上沿切成两半，都不成。
+    for y0f in (0.4, 0.3, 0.2, 0.1, 0.0):
+        for x0f in (0.4, 0.3, 0.2, 0.1, 0.0):
+            x0, x1 = int(W * x0f), int(W * min(1.0, x0f + 0.6))
+            y0, y1 = int(H * y0f), int(H * min(1.0, y0f + 0.6))
+            sub = arr[y0:y1, x0:x1]
+            if sub.size < 400:
+                continue
+            for g in _detect_lattice(sub, 3):
+                g2 = Geometry(x1=g.x1 + x0, y1=g.y1 + y0, x2=g.x2 + x0, y2=g.y2 + y0,
+                              cols=g.cols, rows=g.rows)
+                if all(abs(g2.cell_w - c.cell_w) > 0.5 or g2.rows != c.rows
+                       or g2.cols != c.cols
+                       or abs(g2.x1 - c.x1) > 2 or abs(g2.y1 - c.y1) > 2 for c in out):
+                    out.append(g2)
         if len(out) >= limit:
             break
     return out[:limit]
@@ -1063,10 +1084,30 @@ def _detect_lattice(arr: np.ndarray, limit: int = 4) -> List[Geometry]:
     band = arr[max(0, int(y_lo)):min(arr.shape[0], int(y_hi) + 1), :]
     if band.shape[0] < 20:
         return []
-    x_found = _scan_lattice(_narrow_dip(band.mean(axis=0)))
-    if x_found is None:
+    # 横向格线（★ 2026-10-01 真机 1280×720 事故）：先按整条带扫一遍；扫不到就说明
+    #   棋盘只占这条带的一部分（房间/立绘/压在上面的窗口把它旁边的像素一起平均进来了），
+    #   周期信号被稀释 → 横向投影里看不出网。实测用户那台：条带纵向明明是 68.3px 周期，
+    #   横向却一直 None，整屏因此报「自动定位失败」，而他屏幕上棋盘清清楚楚。
+    #   对策是通用的：把条带再切几个子窗口逐段扫，真棋盘所在的那一段自然会给出清晰的周期。
+    #   多出来的候选没有害处——上游取棋盘时每一条都要过「读提示数字」校验（_adopt_candidate）。
+    x_found_list: List[Tuple[float, float, float, float]] = []
+    _xf = _scan_lattice(_narrow_dip(band.mean(axis=0)))
+    if _xf is not None:
+        x_found_list.append(_xf)
+    else:
+        bw = band.shape[1]
+        for f0, f1 in ((0.0, 0.5), (0.25, 0.75), (0.5, 1.0),
+                       (0.0, 0.75), (0.25, 1.0), (0.0, 1.0)):
+            xa, xb = int(bw * f0), int(bw * f1)
+            if xb - xa < 60:
+                continue
+            f = _scan_lattice(_narrow_dip(band[:, xa:xb].mean(axis=0)))
+            if f is not None:
+                p, lo, hi, sc = f
+                x_found_list.append((p, lo + xa, hi + xa, sc))
+                break                      # 找到一段就够了，剩下的交给读提示数字校验
+    if not x_found_list:
         return []
-    p_x, x_lo, x_hi, _ = x_found
 
     def variants(p: float, lo: float, hi: float) -> List[Tuple[float, float, int]]:
         """实测线数优先吸附到游戏标准尺寸；再给出「两端各漏一条线」的变体。"""
@@ -1091,17 +1132,18 @@ def _detect_lattice(arr: np.ndarray, limit: int = 4) -> List[Geometry]:
         return out
 
     cands: List[Geometry] = []
-    for y0, y1, rows in variants(p_y, y_lo, y_hi):
-        for x0, x1, cols in variants(p_x, x_lo, x_hi):
-            cell_w, cell_h = (x1 - x0) / cols, (y1 - y0) / rows
-            if cell_w < 6 or cell_h < 6:
-                continue
-            g = Geometry(x1=x0 + cell_w / 2, y1=y0 + cell_h / 2,
-                         x2=x1 - cell_w / 2, y2=y1 - cell_h / 2, cols=cols, rows=rows)
-            if all(abs(g.cell_w - c.cell_w) > 0.5 or abs(g.cell_h - c.cell_h) > 0.5
-                   or g.rows != c.rows or g.cols != c.cols
-                   or abs(g.x1 - c.x1) > 2 or abs(g.y1 - c.y1) > 2 for c in cands):
-                cands.append(g)
+    for p_x, x_lo, x_hi, _ in x_found_list:
+        for y0, y1, rows in variants(p_y, y_lo, y_hi):
+            for x0, x1, cols in variants(p_x, x_lo, x_hi):
+                cell_w, cell_h = (x1 - x0) / cols, (y1 - y0) / rows
+                if cell_w < 6 or cell_h < 6:
+                    continue
+                g = Geometry(x1=x0 + cell_w / 2, y1=y0 + cell_h / 2,
+                             x2=x1 - cell_w / 2, y2=y1 - cell_h / 2, cols=cols, rows=rows)
+                if all(abs(g.cell_w - c.cell_w) > 0.5 or abs(g.cell_h - c.cell_h) > 0.5
+                       or g.rows != c.rows or g.cols != c.cols
+                       or abs(g.x1 - c.x1) > 2 or abs(g.y1 - c.y1) > 2 for c in cands):
+                    cands.append(g)
     # 只保留游戏支持的方形尺寸（5×5 ~ 20×20），非方形候选（进关动画等）丢弃
     cands = [g for g in cands if g.rows == g.cols and g.rows in STANDARD_SIZES]
     return cands[:limit]
