@@ -51,6 +51,30 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageGrab, ImageOps
 
+
+def _enable_dpi_awareness() -> None:
+    """
+    让本进程按「物理像素」工作 —— 2026-10-01 真机事故的根因就在这一条。
+
+    用户那台显示器是 **150% 缩放**（桌面 2560×1600 物理 / 1707×1067 逻辑）。进程 DPI 不感知时：
+      · `GetWindowRect` / `ClientToScreen` 返回**逻辑**坐标（被系统按 1/1.5 缩过）；
+      · `SetCursorPos` / `mouse_event` 也是逻辑坐标（同样被缩），所以**点击一直是对的**；
+      · 但 PIL 的 `ImageGrab` 是**物理像素** —— 「拿逻辑坐标去裁物理截图」于是整体偏移。
+    实测后果：抓到的「客户区」其实偏到窗口的左上外，棋盘被推出画面（棋盘左上角跑到画面
+    (83%, 52%)、右/下都出画），定位于是整屏「自动定位失败」，而他屏幕上棋盘清清楚楚。
+    设成 DPI 感知后，窗口坐标 / 光标坐标 / 截图三者全是同一套物理像素，才自洽。
+    """
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)      # PROCESS_PER_MONITOR_DPI_AWARE
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()        # 老系统兜底
+        except Exception:
+            pass
+
+
+_enable_dpi_awareness()
+
 try:
     import pytesseract
 except Exception:  # pragma: no cover
