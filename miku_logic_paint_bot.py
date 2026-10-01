@@ -3120,12 +3120,14 @@ def resolve_geometry(screen: Screen, cfg: Config, log=print,
     for attempt in range(1, max(1, attempts) + 1):
         img = screen.grab_client()
         cands = auto_detect_candidates(img)
-        if not cands:
-            # ★ 整幅扫不到棋盘时，用「局部窗口」再扫一遍（2026-10-01 真机 Lv1 事故：
-            #   5×5 棋盘小、又被房间/人物立绘盖住，整幅平均把信号稀释掉了）。
-            #   这里的结果仍要逐条过下面的 _adopt_candidate（读提示数字校验），
-            #   所以特别谜题列表那种没有提示数字的画面不会被当成棋盘。
-            cands = auto_detect_candidates_local(img)
+        # ★ 再补上「画面局部窗口」扫出来的候选（2026-10-01 真机 Lv1/Lv2 事故）。
+        #   两种病都能兜住：① 整幅扫不到（5×5 棋盘小 + 房间/人物立绘把信号稀释掉）；
+        #   ② 整幅扫出了**错尺寸**（小棋盘被背景纹理带偏成 20×20 之类），候选过不了校验。
+        #   补进来的候选照样要逐条过下面的 _adopt_candidate（读提示数字校验），
+        #   所以特别谜题列表那种没有提示数字的画面不会被当成棋盘。
+        for _g in auto_detect_candidates_local(img):
+            if not any(_same_board(_g, _c) for _c in cands):
+                cands.append(_g)
         if geom is not None:
             for c in cands:
                 if _same_board(c, geom):
