@@ -27,7 +27,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "1.0.10"
+VERSION = "1.0.11"
 NAME = "MikuNonogramBot"
 OWNER = "angaotian"          # GitHub 用户名（README / 发布说明里的直链要用）
 TITLE = "Miku 数织自动闯关（Hatsune Miku Logic Paint S 辅助工具）"
@@ -39,6 +39,7 @@ COMMON_FILES = [
     "requirements.txt",
     "启动.bat",
     "启动面板.bat",
+    "卸载.bat",
     "panel/index.html",
     "panel/shell/README.md",
     "tools/panel_archive.py",
@@ -237,6 +238,17 @@ python miku_logic_paint_bot.py --dry-run     :: 只识别+求解，不点游戏�
 3. **游戏窗口与分辨率要求** —— 窗口要在前台；推荐 1920×1080 / 1280×720，其它分辨率先 `--calibrate`；
    屏幕缩放保持 100%；别用独占全屏；副屏/投屏/远程桌面会改变截图尺寸。
 
+## 卸载（想删干净的时候）
+
+双击 **`卸载.bat`**，按提示输 `Y` 确认即可。它会：
+
+- 关掉正在跑的 `MikuPanel.exe` / 本项目 Python 进程；
+- 删掉程序文件夹（含 `debug/` 截图、校准配置、`*.new` 临时备份）；
+- 扫 `%TEMP%` 里本程序遗留的 `_MEI*` 临时目录并清掉（只删带本项目标记的那些）。
+
+**不会动** Tesseract-OCR 和 WebView2 —— 那两个是系统级组件，别的软件也可能在用，卸载程序只删自己。
+删完程序文件夹会自己消失（窗口提示「已发起删除」后你可以直接关掉它）。
+
 ## 已知限制（写清楚，别踩）
 
 - **OCR 偶发读错**：个别关卡的小字号提示数字会被读错（表现为某一行/列始终不变灰）；
@@ -262,6 +274,7 @@ tools/panel_extract.py       从 exe 里解出三份真源（对照用）
 tools/panel_archive.py       PyInstaller CArchive 读写（供上面几个工具用）
 tools/panel_shell_disasm.py  外壳字节码反汇编导出
 启动面板.bat / 启动.bat        图形入口 / 命令行入口
+卸载.bat                      卸载（删文件夹 + 清运行数据 + 清 %TEMP% 残留）
 MikuPanel.exe                预编译面板（Release 包提供）
 docs/开发记录.md              开发记录：每条判据、每次踩坑与验证方式
 ```
@@ -316,6 +329,29 @@ SOFTWARE.
 """
 
 CHANGELOG = """# 更新记录
+
+## v1.0.11（用起来不卡住 + 新增一键卸载）
+
+**症状一：点了没反应，一直读不出来。** 机器上没装 Tesseract-OCR（读提示数字要用的组件）时，
+脚本以前只打一行警告就照旧往下跑，用户看到的就是「点了没反应 / 一直读不出来」。
+
+**修法**：改成**启动前硬校验**。缺组件就立刻停下，不再假装在跑，并把「怎么装」写在屏幕上：
+
+- 主脚本 `miku_logic_paint_bot.py`：`init_ocr()` 的返回值以前被丢掉，现在用 `require_ocr()`
+  卡住主流程，缺 Tesseract 直接退出（退出码 2）并打印安装指引（含下载页与默认安装路径）。
+- `启动面板.bat`：开面板前先预检 **WebView2** 与 **Tesseract**，缺哪个就明确告诉你缺哪个、
+  去哪下（WebView2 用微软直链，Tesseract 用 UB-Mannheim 下载页），不再让你对着空窗口猜。
+
+**症状二：想删干净却不知道从哪下手。** 新增 `卸载.bat`（双击即可）：
+
+- 结束正在运行的 `MikuPanel.exe` 与本项目 Python 进程；
+- 删除程序文件夹（含 `debug/` 截图、校准配置、`*.new` 临时备份）；
+- 扫 `%TEMP%` 里本程序遗留的 `_MEI*` 解包目录，**只删带本项目标记的**（别人的 `_MEI*` 不碰）；
+- 父窗口删不掉自己（文件被占用），所以自动把删除动作交给 `%TEMP%` 里的副本，删完自删；
+- **不会动** Tesseract-OCR 与 WebView2 —— 系统级组件，别的软件也可能在用，卸载只删自己。
+
+**实测**：输入 `N` 什么都不删；输入 `Y` ——程序文件夹已删、`%TEMP%` 里本项目的 `_MEI*` 已清、
+他人 `_MEI*` 保留、临时副本自删；`--selftest` 全过。
 
 ## v1.0.10（修复：反复「N×N 校验不通过」——改成逐条提示跨帧投票）
 
@@ -500,7 +536,16 @@ RELEASE_NOTES = """## 下载
 
 两者都还需要本机装 **Tesseract-OCR**（读提示数字用）与 **WebView2**（只有面板 GUI 需要，Win11 自带）。
 
-## 本版（v{version}）修了什么
+## 本版（v{version}）改了什么
+
+- **不再「点了没反应」**：没装 Tesseract-OCR 时，以前只打一行警告就继续跑，看起来像卡住。
+  现在启动前就硬校验，缺组件立刻停下，并把「去哪下、装到哪」直接打印出来；
+  `启动面板.bat` 也会先预检 WebView2 与 Tesseract，缺哪个告诉你哪个。
+- **新增 `卸载.bat`（一键卸载）**：双击 → 输 `Y`，自动结束进程、删程序文件夹（含 `debug/` 截图、
+  校准配置、临时备份）、清 `%TEMP%` 里本程序遗留的 `_MEI*` 目录。**不动** Tesseract-OCR / WebView2。
+  删完文件夹自己消失，窗口提示「已发起删除」后可直接关掉。
+
+## 上一版（v1.0.10）修了什么
 
 - **读题（两处）**：
   1. 「两位数被整块读错」（「13」读成「15」）——按 1432 张真机帧重定「3 / 5」字形定夺门槛；

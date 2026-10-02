@@ -8,13 +8,13 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## ⬇️ 下载（Windows，免安装）
 
-**[点这里直接下载 MikuNonogramBot-1.0.10-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.10-win64.zip)**（约 32 MB，自带面板，不用装 Python）
+**[点这里直接下载 MikuNonogramBot-1.0.11-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.11-win64.zip)**（约 32 MB，自带面板，不用装 Python）
 
 - 想下最新版永远用这个地址：<https://github.com/angaotian/MikuNonogramBot/releases/latest>
-- 只想看代码：[MikuNonogramBot-1.0.10-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.10-src.zip)
+- 只想看代码：[MikuNonogramBot-1.0.11-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.11-src.zip)
 - 下载后：**解压 → 双击 `启动面板.bat` → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」**
 
-> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.10**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
+> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.11**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
 
 ## 长什么样
 
@@ -43,7 +43,7 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## 下载即用（推荐，不需要装 Python）
 
-1. 下载 **`MikuNonogramBot-1.0.10-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
+1. 下载 **`MikuNonogramBot-1.0.11-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
 2. 解压到任意目录
 3. 双击 **`启动面板.bat`** → 面板窗口打开 → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」
 
@@ -170,6 +170,17 @@ python miku_logic_paint_bot.py --dry-run     :: 只识别+求解，不点游戏�
 3. **游戏窗口与分辨率要求** —— 窗口要在前台；推荐 1920×1080 / 1280×720，其它分辨率先 `--calibrate`；
    屏幕缩放保持 100%；别用独占全屏；副屏/投屏/远程桌面会改变截图尺寸。
 
+## 卸载（想删干净的时候）
+
+双击 **`卸载.bat`**，按提示输 `Y` 确认即可。它会：
+
+- 关掉正在跑的 `MikuPanel.exe` / 本项目 Python 进程；
+- 删掉程序文件夹（含 `debug/` 截图、校准配置、`*.new` 临时备份）；
+- 扫 `%TEMP%` 里本程序遗留的 `_MEI*` 临时目录并清掉（只删带本项目标记的那些）。
+
+**不会动** Tesseract-OCR 和 WebView2 —— 那两个是系统级组件，别的软件也可能在用，卸载程序只删自己。
+删完程序文件夹会自己消失（窗口提示「已发起删除」后你可以直接关掉它）。
+
 ## 已知限制（写清楚，别踩）
 
 - **OCR 偶发读错**：个别关卡的小字号提示数字会被读错（表现为某一行/列始终不变灰）；
@@ -195,6 +206,7 @@ tools/panel_extract.py       从 exe 里解出三份真源（对照用）
 tools/panel_archive.py       PyInstaller CArchive 读写（供上面几个工具用）
 tools/panel_shell_disasm.py  外壳字节码反汇编导出
 启动面板.bat / 启动.bat        图形入口 / 命令行入口
+卸载.bat                      卸载（删文件夹 + 清运行数据 + 清 %TEMP% 残留）
 MikuPanel.exe                预编译面板（Release 包提供）
 docs/开发记录.md              开发记录：每条判据、每次踩坑与验证方式
 ```

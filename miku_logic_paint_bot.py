@@ -661,15 +661,34 @@ def find_tesseract() -> Optional[str]:
 def init_ocr() -> bool:
     global _TESSERACT_CMD
     if pytesseract is None:
-        print("[警告] 未安装 pytesseract，无法识别提示数字（pip install pytesseract）")
+        print("[错误] 缺少 pytesseract 库，无法识别提示数字。")
         return False
     cmd = find_tesseract()
     if not cmd:
-        print("[警告] 未找到 Tesseract-OCR，请先安装：https://github.com/UB-Mannheim/tesseract/wiki")
+        print("[错误] 未找到 Tesseract-OCR（识别提示数字要用）。")
         return False
     _TESSERACT_CMD = cmd
     pytesseract.pytesseract.tesseract_cmd = cmd
     return True
+
+
+def require_ocr() -> bool:
+    """启动前自检：没有可用的 OCR 就立刻停下，并把「怎么装」写清楚。
+
+    以前 init_ocr() 的返回值在主流程里被丢掉了，缺 Tesseract 时会一路跑到
+    「怎么也读不出数字」才失败，用户看着就像卡住。这里改成缺组件就明确报错退出。
+    """
+    if init_ocr():
+        return True
+    print("-" * 58)
+    print("缺少 Tesseract-OCR，无法识别提示数字，脚本没法开始（这不是卡住，是缺组件）。")
+    print("装一下就好（免费，约 1 分钟）：")
+    print("  1) 打开 https://github.com/UB-Mannheim/tesseract/wiki")
+    print("  2) 下载 tesseract-ocr-w64-setup-*.exe，双击安装，一路「下一步」")
+    print(r"     默认装到 C:\Program Files\Tesseract-OCR，不用手动配 PATH")
+    print("  3) 装完直接重新运行本程序，不用重启电脑")
+    print("-" * 58)
+    return False
 
 
 def _otsu_threshold(gray: np.ndarray) -> int:
@@ -5844,7 +5863,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if cfg.geom is None:
         print("还没有校准数据，正在自动定位当前棋盘（无需手动校准）…")
-        if not init_ocr():
+        if not require_ocr():
             return 2
         scr = Screen(hwnd)
         g = resolve_geometry(scr, cfg, log=print, attempts=6)
@@ -5859,7 +5878,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             pass
         print(f"已自动定位：{g.rows}×{g.cols}（格宽 {g.cell_w:.1f}px），配置已保存。")
 
-    init_ocr()
+    # 关键：以前这里丢掉了 init_ocr() 的返回值，缺 Tesseract 也照跑，
+    # 用户看到的就是「点了没反应/一直读不出来」。现在缺组件直接停下并给指引。
+    if not require_ocr():
+        return 2
     screen = Screen(hwnd)
     stop = StopController(cfg)
 
