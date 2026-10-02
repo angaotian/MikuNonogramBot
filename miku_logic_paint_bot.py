@@ -1073,13 +1073,17 @@ def auto_detect_candidates_local(img: Image.Image, limit: int = 4) -> List[Geome
     #   的「读提示数字」校验，过不了的直接丢弃（特别谜题列表那种画面也过不了）。
     #   顺序上先扫靠下的窗口：顶部是游戏自己的信息卡/HUD，靠下的窗口更干净，
     #   真棋盘更可能排在前面（校验是逐条做的，越早命中越省时间）。
-    #   步进取 0.1（窗口 0.6）：0.2 的粒度实测不够——用户那台机器上棋盘上沿在 y≈0.38 处，
+    #   步进取 0.1（窗口 0.8）：0.2 的粒度实测不够——用户那台机器上棋盘上沿在 y≈0.38 处，
     #   而干净区从 y≈0.33 才开始，0.2 的步进只给出 y=0.2 / 0.4 两个选择，
     #   一个把顶部信息卡圈进来、一个把棋盘上沿切成两半，都不成。
+    #   ★ 窗口又 0.6 → 0.8（2026-10-01 真机 5×5 事故）：5×5 棋盘 666px 比 0.6 窗口还高
+    #   （648px），**任何窗口都装不下它** ⇒ 纵向网格线永远被窗口边缘截断 ⇒ 算出来的锚点
+    #   系统性偏 0.1 格、甚至整格（实测 426/559/572 vs 正确的 439/441），真候选反而排在
+    #   垃圾候选后面。放大到 0.8（864px）后整块棋盘能被某个窗口完整框住。
     for y0f in (0.4, 0.3, 0.2, 0.1, 0.0):
         for x0f in (0.4, 0.3, 0.2, 0.1, 0.0):
-            x0, x1 = int(W * x0f), int(W * min(1.0, x0f + 0.6))
-            y0, y1 = int(H * y0f), int(H * min(1.0, y0f + 0.6))
+            x0, x1 = int(W * x0f), int(W * min(1.0, x0f + 0.8))
+            y0, y1 = int(H * y0f), int(H * min(1.0, y0f + 0.8))
             sub = arr[y0:y1, x0:x1]
             if sub.size < 400:
                 continue
@@ -1099,7 +1103,8 @@ def _detect_lattice(arr: np.ndarray, limit: int = 4) -> List[Geometry]:
     """
     在**给定的灰度数组**上做格线扫描（auto_detect_candidates 的全幅那一遍 + 局部窗口那一遍都调它）。
     先在纵向找网格（提示条带会加强该方向信号），再限定在棋盘高度范围内找横向网格。
-    格子数据实测线数算出并吸附到游戏支持的 5/10/20 标准尺寸，两端也各给一种「漏了最外一条线」的对齐方式。
+    格数由锁定段的实测格距推算（格宽 = 实测格距 p，两端各给「可能漏了一条线」的变体），
+    见 variants()：**绝不用「跨度 ÷ 吸附格数」当格宽**。
     """
     y_found = _scan_lattice(_narrow_dip(arr.mean(axis=1)))
     if y_found is None:
@@ -1134,25 +1139,26 @@ def _detect_lattice(arr: np.ndarray, limit: int = 4) -> List[Geometry]:
         return []
 
     def variants(p: float, lo: float, hi: float) -> List[Tuple[float, float, int]]:
-        """实测线数优先吸附到游戏标准尺寸；再给出「两端各漏一条线」的变体。"""
-        raw = int(round((hi - lo) / p))
-        sizes: List[int] = []
-        snapped = snap_size(raw, tol=1.0)
-        if snapped != raw:
-            sizes.append(snapped)
-        sizes.append(raw)
+        """把「已锁定的等距线阵」扩展成候选（首线, 末线, 格数）。
+
+        ★ 2026-10-01 真机修正（用户日志「5×5（格宽 54.32px）校验不通过」）：
+          旧写法会把「实测跨度 ÷ 吸附后的格数」当成格宽 —— 锁定段只有 4 格时吸附成 5，
+          格宽就变成 4p/5 = 0.8p（54.32 = 67.9×0.8 ✓，10×10 上则是 9p/10 = 0.9p）。
+          这种「格宽 ≠ 实测格距」的几何是自相矛盾的：按它裁提示区必然全错位、必然判死。
+          锁定段其实只有两种可能：**整段就是棋盘**（格数 = k），或**两端各漏了一条线**
+          （格数 = k+1 / k+2，跨度相应加 p / 2p）——**格宽永远等于实测格距 p**。
+          顺序上把「格数正好落在游戏标准尺寸（5/10/15/20/25）」的排前面，
+          真棋盘更可能是它们（小棋盘上锁定段常常差一条线）。
+        """
+        k = max(1, int(round((hi - lo) / p)))        # 锁定段内的格数（= 间距数）
         out: List[Tuple[float, float, int]] = []
-        for n in sizes:
+        for lo2, hi2, n in ((lo, hi, k),
+                            (lo - p, hi, k + 1),     # 可能漏了最前一条线
+                            (lo, hi + p, k + 1),     # 可能漏了最后一条线
+                            (lo - p, hi + p, k + 2)):  # 两端都漏
             if 3 <= n <= 30:
-                out.append((lo, hi, n))                  # 实测首/末线
-        for n in sizes:
-            if not (3 <= n <= 30):
-                continue
-            for grow in (n + 1, snap_size(n + 1, tol=1.0)):
-                if grow == n or not (3 <= grow <= 30):
-                    continue
-                out.append((lo - p, hi, grow))           # 可能漏了最前一条线
-                out.append((lo, hi + p, grow))           # 可能漏了最后一条线
+                out.append((lo2, hi2, n))
+        out.sort(key=lambda t: 0 if t[2] in STANDARD_SIZES else 1)   # 稳定排序
         return out
 
     cands: List[Geometry] = []
@@ -1304,16 +1310,45 @@ def _blank_line_edges(band: np.ndarray, thr: float) -> np.ndarray:
     """
     抹掉条带两端「整列都暗」的边框线（棋盘外框/提示面板边框）。
     只把边缘列涂成亮色，不改动数组尺寸，后续坐标仍然一致。
+
+    ★ 2026-10-01 补充：靠棋盘那一端的边框线外侧常带 1~2 列**抗锯齿的半暗列**（亮度介于
+    thr 与底色之间）。原来「从最外一列开始判整列都暗」，遇到这种半暗列会立刻退出 ⇒ 边框
+    **完全没被抹掉**。5×5 第 5 行现场实锤（该行被光标粉色高亮，把 _band_levels 的 80 分位
+    抬到 163、thr 降到 113.5）：右侧 x853..861 的满高竖线 + x862/863 半暗列都留下了，
+    于是 `2`（右端 x829）被 gap_max 并进这条满高竖线，再被 _digit_blobs 的「剔除贯穿整条
+    带的竖条」整块删掉 ⇒ 行和 16 ≠ 列和 18，整关判死。
+    所以额外用**贯穿条带**这个特征去找边框线：数字高度只占条带约 55%（实测 67/123），
+    永远达不到 90%，据此判边框线不会误伤数字。
     """
     dark = band < thr
     h = dark.shape[0]
+    w = dark.shape[1]
     need = max(3, int(0.5 * h))
-    x0, x1 = 0, dark.shape[1] - 1
-    while (x1 - x0) > 8 and dark[:, x1].sum() >= need:
+    full = max(3, int(0.9 * h))
+    colsum = dark.sum(axis=0)
+
+    def _edge_line(cols):
+        """在 cols（由外向内的列号序列）前 6 列里找「贯穿整条带」的边框线列。"""
+        for t, x in enumerate(cols):
+            if colsum[x] >= full:
+                return x
+            if t >= 5:
+                break
+        return None
+
+    x0, x1 = 0, w - 1
+    xr = _edge_line(range(w - 1, max(-1, w - 14), -1))
+    if xr is not None:
+        x1 = xr - 1
+    while (x1 - x0) > 8 and colsum[x1] >= need:
         x1 -= 1
-    while (x1 - x0) > 8 and dark[:, x0].sum() >= need:
+    xl = _edge_line(range(0, min(w, 14)))
+    if xl is not None and (x1 - xl) > 8:
+        x0 = xl + 1
+    while (x1 - x0) > 8 and colsum[x0] >= need:
         x0 += 1
-    if x0 == 0 and x1 == dark.shape[1] - 1:
+
+    if x0 == 0 and x1 == w - 1:
         return band
     out = band.copy()
     out[:, :x0] = 255.0
@@ -1539,6 +1574,14 @@ def _digit_side(crop: Image.Image, mid: float) -> Optional[int]:
 
 
 USE_CLUE_ZONE_CLAMP = False   # 见下方 _clue_zone_far_edge：试过，读数没变好，默认关
+
+# 提示数字所在块的「底色 75 分位」低于这个值就当成深色浮窗（监控条/语音小窗），
+# 不当数字读。取值有实测依据：
+#   · 真机 10×10：提示数字块的 75 分位 = 159（粉底）/ 231（白底）——绝不能低于 150 去误伤它们；
+#   · 真机那两个浮窗（麦克风小窗、监控条色块）是**实心深色**：75 分位 ≈ 30~90；
+#   · 合成自检图（34px 小格）的字块 75 分位最低到 115——存款不能高于它，否则小格字被当浮窗丢掉。
+# 取 100 同时满足三条。
+OVERLAY_BG_MIN = float(os.environ.get("MIKU_BOT_OVERLAY_BG_MIN", "100") or 100)
 
 
 # --------------------------------------------------------------------------
@@ -1826,6 +1869,13 @@ def _read_clue_axis(img: Image.Image, geom: Geometry, axis: str,
                     continue          # 两个方向都很大 → 界面元素而非数字
                 if dark < 8:
                     continue
+                # ⚠ 2026-10-01 试过「按块底色深浅剔掉屏幕浮窗」（用户机上 FPS/CPU 监控条、
+                #   语音小窗是深色底，会被读成提示数字：实测把「1.8 GB」读成 18 → 10×10 列5 越界判死）。
+                #   **实测不可行，已回退**：真机 10×10 的字块底色 75 分位是 159（粉底）/231（白底），
+                #   浮窗是 30~90 —— 但**合成自检图（34px 小格）的字块低到 115**，任何
+                #   能剔掉浮窗的阈值都会顺手把小格字剔掉（--selftest 挂 5~6 项）。
+                #   也就是说「实心深色块」和「小字号」在像素上分不开，别再走这条路。
+                #   真正的解法是让浮窗别压在提示区上（用户侧把监控条/语音小窗挪开），见 README。
                 # 空行/空列的提示位画的是一个灰色的 0（见 _is_blank_zero）：它会被 OCR 读成
                 # 8/6，一旦当成数字就把「行和 = 列和」这条硬约束顶掉（实测整帧判死、这关再也
                 # 读不出来）。按字形认出来，标成「空提示」：**留在 items 里参与下面的链式筛选**
@@ -1930,6 +1980,14 @@ def _read_clue_axis(img: Image.Image, geom: Geometry, axis: str,
     gap_use = max(4, int(round(gap_ratio * pitch)))
     # 远离棋盘一侧再多留一个提示格，保护最左/最上那个提示不被条带边界截断
     raw = collect(strip_w, strict=True, gap=gap_use, far_pad=pitch)
+    # far_pad 只是为了避免最外侧那个提示被条带边界截断（截断后 a0<=0 会被当成界面
+    # 元素一并丢掉）。代价是条带被伸进棋盘外的美术区：真机 20261002_153748（5×5）
+    # 第 0 行最左端有一小块立绘碎片（沿[27,32] w=6 h=39 dark=21，填充率仅 9%）被
+    # 当成提示「1」读了出来 → 行和 18 ≠ 列和 17，整关读不出、卡死。
+    # 提示是「一格一个数字」排的：最外侧提示格的中心离棋盘最多 (max_slots-0.5) 格。
+    # 如果墨迹块的**中心**连 strip_w 都超出去（落在额外多留的那一整格 padding 里），
+    # 它就不可能是提示数字，直接丢。真实数字整块都在面板内，离棋盘更近，不受影响。
+    raw = [[it for it in items if border - it[0] <= strip_w] for items in raw]
     if os.environ.get("MIKU_BOT_TRACE"):
         print(f"[trace {axis}] border={border:.1f} pitch={pitch:.1f} 条带={strip_w:.0f}")
         for i, items in enumerate(raw):
@@ -2062,9 +2120,9 @@ def _read_clue_axis(img: Image.Image, geom: Geometry, axis: str,
                     two.append(v)
             # 游戏里两位数只在 10~15，十位恒为细笔画「1」。若首个墨迹子块是细笔画
             # （=1），十位就已确定为 1：先用整块的一位读数 v 兜一个「1v」候选（保持原
-            # 有的首选顺序），再把 10~min(19, max_value) 整体补进来。
+            # 有的首选顺序），再把「末位是 3/5」的 13、15 补进来（见下）。
             # 实测整块常把「13」读成「5」、拆字又把「3」读成「4」拼出 14，只靠「整块
-            # 的一位读数」拼十位会彻底漏掉真值 13——所以必须整体补全。真伪交给
+            # 的一位读数」拼十位会彻底漏掉真值 13——所以必须补全。真伪交给
             # 「行和=列和 + 可解」约束定夺。
             glue: set = set()          # 「由真实个位读数补十位」得到的值（算摇摆证据）
             # ⚠ 2026-09-30 试过给这条判断补下界（4.5px，想把 3px 装饰竖条排除掉）——
@@ -2077,10 +2135,24 @@ def _read_clue_axis(img: Image.Image, geom: Geometry, axis: str,
                         if (10 + v) not in two:
                             two.append(10 + v)
                         glue.add(10 + v)
-                for v in range(10, min(19, max_value) + 1):
-                    # 兜底的全量清单：只当备选，**不算**「摇摆证据」（它天然同时含 13 和 15）
-                    if v not in two:
-                        two.append(v)
+                # ★ 2026-10-01：这里以前是 `for v in range(10, min(19, max_value)+1)`，
+                #   即把 10~15(19) **全部**当备选补进来。那是本次「行列总和约束误伤」的
+                #   元凶，已收窄为末位 3/5 的 13、15 —— 理由：
+                #   ① 这份清单**没有任何 OCR 证据**（不是整块读出来的、不是拆字拼出来的、
+                #      也不是「个位读数补十位」得来的），却被 fix_by_sum_constraint 当成
+                #      和真读数同等可信的备选；
+                #   ② 实测 Lv1-24（15×15，真值 R15=14）：R15 的 14 本来读对了，
+                #      该函数却从这份清单里捞了个 12 把 14 改掉（Δ=-2，正好补平列侧
+                #      少读的 2），题面「自洽 + 可解 + 唯一解」三条护栏全过 ⇒ 整关照
+                #      错误题面涂到第 3 批才被填色自查拦下；
+                #   ③ 这份清单的**唯一用途**是给 _digit_side 的「3/5 摇摆」兜底
+                #      （它天然同时含 13 和 15，见下面 evidence 的注释），
+                #      10/11/12/14 从来不是它的目标值，只会凭空造出一堆假备选；
+                #   ④ 只在结构上真的说了「末位是 3 或 5」时才补，否则连 13/15 也是瞎猜。
+                if side is not None:
+                    for v in (13, 15):
+                        if v <= max_value and v not in two:
+                            two.append(v)
             one = [v for v in whole if v < 10]
             cands = two + one
             # 字形结构说末位是 3 / 5，而 OCR 恰好在这两个之间摇摆（候选里同时有 …3 和 …5）
@@ -2088,7 +2160,7 @@ def _read_clue_axis(img: Image.Image, geom: Geometry, axis: str,
             # 免得把「14」这类读得好好的值改坏。
             # 字形结构（_digit_side）定夺「3 / 5」时，只允许它拿 **OCR 自己读出来的值**当证据：
             # 整块读出的 whole、拆字拼出的 joined_cands。上面为了兜底补进来的「10+个位」和
-            # 「10~19 全补一遍」**不算证据**——它们天然同时含 13 和 15，拿它们当证据会把每一个
+            # 「末位 3/5 的 13、15」**不算证据**——13 和 15 天然同时在列，拿它们当证据会把每一个
             # 两位数都误判成「正在 3/5 之间摇摆」，然后结构特征（只在 3/5 上标定过，遇到 4/7
             # 根本不准）把 13 顶到首选。实测真机 Lv3-006：R 轴 6 条两位数整块明明读对了
             # 14/17/1-17/2-14，全被这个误判顶成 13；把证据收窄后它们全部回到正确读数。
@@ -2215,7 +2287,8 @@ def _apply_alt(rows: List[List[int]], cols: List[List[int]], key: tuple, val: in
 
 
 def fix_by_sum_constraint(rows_c: List[List[List[int]]], cols_c: List[List[List[int]]],
-                          geom: Geometry, cfg: Config, log=print
+                          geom: Geometry, cfg: Config, log=print,
+                          budget_s: Optional[float] = None
                           ) -> Optional[Tuple[List[List[int]], List[List[int]]]]:
     """
     用「行提示总和必须等于列提示总和」这一硬约束，配合每个提示格的候选读数
@@ -2245,7 +2318,14 @@ def fix_by_sum_constraint(rows_c: List[List[List[int]]], cols_c: List[List[List[
     def _ok(r, c) -> bool:
         if validate_clues(r, c, geom):
             return False
-        return PuzzleSolver(r, c).solve(min(6.0, cfg.solver_time_limit)) is not None
+        if PuzzleSolver(r, c).solve(min(6.0, cfg.solver_time_limit)) is None:
+            return False
+        # ★ 2026-10-01 护栏：**纠错出来的题面还必须是唯一解**。错误几何的读数被
+        #   「凑总和」硬改成自洽题面时，5×5 上很容易恰好可解 —— 但几乎都不是唯一解。
+        #   真机事故就是这么来的：垃圾几何（426/559）被凑成「可解」假题面 → 采纳 →
+        #   开打后读不通 / 填错。数到两个解就直接否掉（数不完按保守算通过）。
+        n, _cut = PuzzleSolver(r, c).count_solutions(2, min(2.0, cfg.solver_time_limit))
+        return n < 2
 
     # 一处：只有能把差额补平的备选才值得调求解器（总和相等是必要条件）
     for key, val, dr, dc in cand:
@@ -2253,7 +2333,9 @@ def fix_by_sum_constraint(rows_c: List[List[List[int]]], cols_c: List[List[List[
             continue
         old = _apply_alt(rows, cols, key, val)
         if _ok(rows, cols):
-            log(f"  已按行列总和约束修正一处读数：{key} 改为 {val}（原 {old}）")
+            _slot = (rows_c if key[0] else cols_c)[key[1]][key[2]]
+            log(f"  已按行列总和约束修正一处读数：{key} 改为 {val}"
+                f"（原 {old}，该格候选={_slot}）")
             return rows, cols
         _apply_alt(rows, cols, key, old)
     # 两处：同样先过总和筛（这才是搜得完的关键），再按「改动量小的优先」试。
@@ -2269,7 +2351,10 @@ def fix_by_sum_constraint(rows_c: List[List[List[int]]], cols_c: List[List[List[
                 continue                    # 零成本预筛：改完总和还是不等，直接丢
             pairs.append((abs(d1r) + abs(d1c) + abs(d2r) + abs(d2c), i, j))
     pairs.sort()
-    budget = time.time() + max(6.0, cfg.solver_time_limit)
+    # budget_s 给「取棋盘时的候选校验」用：那里每否掉一个候选都要快，
+    # 不然几个垃圾候选能把自动定位拖到几十秒（每对候选都要调一次求解器）。
+    budget = time.time() + (budget_s if budget_s and budget_s > 0
+                            else max(6.0, cfg.solver_time_limit))
     tried = 0
     for _w, i, j in pairs:
         if time.time() > budget:
@@ -2290,20 +2375,48 @@ def fix_by_sum_constraint(rows_c: List[List[List[int]]], cols_c: List[List[List[
     return None
 
 
-def read_puzzle(screen: Screen, geom: Geometry, cfg: Config, log=print) -> Puzzle:
+def read_puzzle(screen: Screen, geom: Geometry, cfg: Config, log=print,
+                archive: bool = True, fix_budget: Optional[float] = None) -> Puzzle:
+    """读一帧（多帧投票）提示数字。
+
+    archive=False 给「取棋盘时的候选校验」用：那里一次要试好几个候选，
+    每否掉一个都要存一张失败现场就把 debug 目录刷爆了；
+    fix_budget 同理——校验候选时要快速否掉垃圾候选，不能每个都跑满纠错预算。
+    """
     park_cursor(screen)
     good: List[Puzzle] = []
     last_problems: List[str] = []
+    # 存「真正读过的那一帧」：原来的存档抓的是失败之后的新帧，离线复现时对不上
+    first_shot: Optional[Image.Image] = None
+    if archive and not getattr(screen, "is_fake", False):
+        try:
+            first_shot = screen.grab_client()
+        except Exception:
+            first_shot = None
     attempts = max(1, int(cfg.max_read_attempts))
-    for attempt in range(1, attempts + 1):
+    # ★ 逐条提示跨帧投票（2026-10-01 真机）：原来是「整帧读数必须两帧完全一致才算过」，
+    #   而真机上同一块棋盘、同一几何，这一帧读得出、下一帧丢几行（游戏动画/高亮在抖，
+    #   提示格的阈值逐帧翻），于是永远凑不齐一致 ⇒ 反复「N×N（格宽 …px）校验不通过」。
+    #   现在每帧都把**每条提示线的读数**投进票箱，最后按多数票拼回整题再校验 ——
+    #   某一帧某一行抖坏，不影响其它行，也不会把整关判死。
+    vote_r: List[Counter] = [Counter() for _ in range(geom.rows)]
+    vote_c: List[Counter] = [Counter() for _ in range(geom.cols)]
+    for attempt in range(1, max(attempts, 3) + 1):
         # 先等画面稳定（进关动画/高亮闪烁停下来）再 OCR，别抢在动画中间帧读，
         # 否则会读出「第7列 37」这种半截数字，平白多跑几帧
         _wait_board_stable(screen, geom)
         rows_c, cols_c, unreadable = _read_frame(screen, geom, cfg)
         rows, cols = _primary(rows_c), _primary(cols_c)
+        for _i, _ln in enumerate(rows):
+            if _ln:
+                vote_r[_i][tuple(_ln)] += 1
+        for _i, _ln in enumerate(cols):
+            if _ln:
+                vote_c[_i][tuple(_ln)] += 1
         problems = validate_clues(rows, cols, geom)
         if problems:
-            fixed = fix_by_sum_constraint(rows_c, cols_c, geom, cfg, log)
+            fixed = fix_by_sum_constraint(rows_c, cols_c, geom, cfg, log,
+                                          budget_s=fix_budget)
             if fixed is not None:
                 rows, cols = fixed
                 problems = []
@@ -2323,7 +2436,8 @@ def read_puzzle(screen: Screen, geom: Geometry, cfg: Config, log=print) -> Puzzl
             except Exception:
                 solvable = False
             if not solvable:
-                fixed = fix_by_sum_constraint(rows_c, cols_c, geom, cfg, log)
+                fixed = fix_by_sum_constraint(rows_c, cols_c, geom, cfg, log,
+                                          budget_s=fix_budget)
                 if fixed is not None:
                     rows, cols = fixed
                 else:
@@ -2338,6 +2452,42 @@ def read_puzzle(screen: Screen, geom: Geometry, cfg: Config, log=print) -> Puzzl
             return puzzle
         good.append(puzzle)
         log(f"  第 {attempt}/{attempts} 帧识别通过（行和={sum(puzzle.row_sums)}），等待第二帧确认…")
+    # ★ 跨帧投票兜底：上面那套「两帧完全一致」没凑齐时，用票箱拼一次。
+    def _tally(counter: Counter) -> List[int]:
+        if not counter:
+            return []
+        best, best_n = counter.most_common(1)[0]
+        if best_n < 2:
+            # 没有哪条读数出现过两次 —— 用「出现次数最多、并列时取更长的那条」
+            # （长的那条信息更全，越界/无解会在校验里被拦掉）
+            top = max(counter.values())
+            cands = [k for k, v in counter.items() if v == top]
+            best = max(cands, key=len)
+        return list(best)
+
+    voted_r = [_tally(c) for c in vote_r]
+    voted_c = [_tally(c) for c in vote_c]
+    # 票箱里某些行一条都没投过 → 用已通过校验的那几帧里出现过的读数补上
+    for i, c in enumerate(vote_r):
+        if not voted_r[i] and good:
+            voted_r[i] = list(good[-1].row_clues[i])
+    for i, c in enumerate(vote_c):
+        if not voted_c[i] and good:
+            voted_c[i] = list(good[-1].col_clues[i])
+    if any(voted_r) or any(voted_c):
+        problems = validate_clues(voted_r, voted_c, geom)
+        if not problems:
+            try:
+                solvable = PuzzleSolver(voted_r, voted_c).solve(
+                    min(6.0, cfg.solver_time_limit)) is not None
+            except Exception:
+                solvable = False
+            if solvable:
+                rows, cols = voted_r, voted_c
+                log(f"  逐条提示跨帧投票通过（行和={sum(sum(c) for c in rows)}）")
+                return Puzzle(rows, cols, geom.rows, geom.cols)
+            problems = ["投票结果无解"]
+        last_problems = problems
     if good:
         cnt = Counter(p.key() for p in good)
         times = cnt.most_common(1)[0][1]
@@ -2349,10 +2499,11 @@ def read_puzzle(screen: Screen, geom: Geometry, cfg: Config, log=print) -> Puzzl
     #   之前只有「涂到一半被重置」那条路存了帧，读失败这条没存 ——
     #   结果 Lv3-016 / Lv3-064 一直读不出来，却拿不到它们的原始画面离线修。
     try:
-        if not getattr(screen, "is_fake", False):
+        if archive and not getattr(screen, "is_fake", False):
             GLYPH_LIB_DIR.mkdir(parents=True, exist_ok=True)
             stamp = time.strftime("%Y%m%d_%H%M%S")
-            screen.grab_client().save(GLYPH_LIB_DIR / f"{stamp}_READFAIL_frame.png")
+            shot = first_shot if first_shot is not None else screen.grab_client()
+            shot.save(GLYPH_LIB_DIR / f"{stamp}_READFAIL_frame.png")
             (GLYPH_LIB_DIR / f"{stamp}_READFAIL_data.json").write_text(json.dumps({
                 "problems": list(last_problems),
                 "rows": [[int(v) for v in ln] for ln in rows],
@@ -2514,6 +2665,8 @@ class PuzzleSolver:
         self.row_clues = [tuple(c) for c in row_clues]
         self.col_clues = [tuple(c) for c in col_clues]
         self.grid = [[0] * self.cols_n for _ in range(self.rows_n)]
+        self._sink: Optional[List[List[List[int]]]] = None   # 数解时用来收集解（solve 不用）
+        self._sink_limit = 1
 
     # -- 基础工具 ---------------------------------------------------------
     def _state_masks(self, axis: str, idx: int) -> Tuple[int, int]:
@@ -2603,6 +2756,9 @@ class PuzzleSolver:
         if not self._propagate():
             return False
         if self._complete():
+            if self._sink is not None:       # 数解模式：记一个解，凑够 limit 才停
+                self._sink.append([row[:] for row in self.grid])
+                return len(self._sink) >= self._sink_limit
             return True
         best = None
         for axis in ("R", "C"):
@@ -2615,7 +2771,11 @@ class PuzzleSolver:
                 if count > 1 and (best is None or count < best[2]):
                     best = (axis, idx, count)
         if best is None:
-            return self._complete()
+            done = self._complete()
+            if done and self._sink is not None:
+                self._sink.append([row[:] for row in self.grid])
+                return len(self._sink) >= self._sink_limit
+            return done
         axis, idx, _ = best
         length = self.cols_n if axis == "R" else self.rows_n
         filled, empty = self._state_masks(axis, idx)
@@ -2645,6 +2805,29 @@ class PuzzleSolver:
             except SolverTimeout:
                 return None
         return self.grid if self._valid() else None
+
+    def count_solutions(self, limit: int = 2, time_limit: float = 2.0
+                        ) -> Tuple[int, bool]:
+        """最多数 limit 个解，返回（数到的个数, 是否被时间截断）。
+
+        ★ 2026-10-01 加：给「按行列总和纠错」当护栏用 —— 把垃圾读数硬凑成一个
+        「自洽且可解」的假题面在 5×5 上太容易了，而这种假题面多半**解不唯一**；
+        真题面（游戏原题）都是唯一解。数到 ≥2 个就说明这次纠错不可信。
+        """
+        self._sink, self._sink_limit = [], max(1, int(limit))
+        try:
+            if not self._propagate():
+                return 0, False
+            if self._complete():
+                self._sink.append([row[:] for row in self.grid])
+                return 1, False
+            try:
+                self._search(time.time() + time_limit)
+            except SolverTimeout:
+                return len(self._sink), True
+            return len(self._sink), False
+        finally:
+            self._sink, self._sink_limit = None, 1
 
 
 def format_solution(grid: Sequence[Sequence[int]], row_clues: Sequence[Sequence[int]]) -> str:
@@ -2860,13 +3043,28 @@ def clue_line_ink(img: Image.Image, geom: Geometry, axis: str, i: int) -> Option
         g = g[:, 1:]                 # 最外那一列是暗的 → 面板还没开始
     if g.size < 24 or g.shape[1] < 4:
         return None
-    # 取「第 k 小」的像素值（k 是个很小的固定数），不用 2% 分位：
-    # 只有一两个数字的提示线，墨迹面积可能不到条带的 1%，2% 分位会落在面板留白上，
-    # 被误判成「已经变灰」。取前若干个最暗像素里偏后的那个，既躲开个别噪点，
-    # 又一定落在数字笔画里。
-    vals = np.sort(g.ravel())
-    idx = min(vals.size - 1, max(2, int(0.002 * vals.size)))
-    return float(vals[idx])
+    # ★ 2026-10-01 真机：**只量「真数字块」的墨迹**，不再拿整条带里最暗的几个像素。
+    #   用户机上常驻 FPS/CPU 监控条、「正在讲话」小窗这类**深色底浮窗**，它们只压住条带的
+    #   一部分（上面「最外一列是暗的」那条裁剪跳不过去——浮窗和面板之间还隔着亮色背景），
+    #   于是浮窗里那几颗深像素（≈30~40）就成了「最暗墨迹」：明明这条提示已经被游戏染灰
+    #   （≈165~180），却被判成「还黑着」——真机 10×10 列10 就是这样白填一整关再中止的。
+    #   判据与读取器同源：块的底色（75 分位）必须是浅色才算提示数字；深色底的整块是浮窗。
+    along_cell = geom.cell_h if axis == "C" else geom.cell_w     # 提示数字排列方向的一格
+    lv = _band_levels(g)
+    if lv is None:
+        return None
+    thr, _mid = lv
+    best: Optional[float] = None
+    for a0, a1, p0, p1, dark in _digit_blobs(
+            g, max(4, int(round(0.32 * along_cell))), thr):
+        if dark < 10:
+            continue                    # 墨迹太少 → 噪点，不是数字
+        sub = g[p0:p1 + 1, a0:a1 + 1]
+        if float(np.percentile(sub, 75)) < OVERLAY_BG_MIN:
+            continue                    # 深色底 → 浮窗，不是提示数字
+        ink = float(np.percentile(sub, 12))   # 这一块墨迹的亮度（黑字≈64 / 已满足的灰字≈165~180）
+        best = ink if best is None else min(best, ink)
+    return best
 
 
 def clue_line_highlighted(img: Image.Image, geom: Geometry, axis: str, i: int) -> bool:
@@ -3158,31 +3356,26 @@ def _same_board(a: Geometry, b: Geometry) -> bool:
 def _adopt_candidate(screen: Screen, cand: Geometry, cfg: Config, log=print) -> bool:
     """
     读一帧提示数字，判定这套几何是否可信。
-    如果只差「行和 ≠ 列和」一两个数字，用总和约束 + 求解器验证自动纠错
-    （高亮行/列偶尔会读错一格），避免因为一个数字就否掉正确的尺寸。
+
+    ★ 2026-10-01 真机事故后改：**改用 read_puzzle 的「逐条提示跨帧投票」**，不再用
+    单帧 _read_frame。真机画面一直在轻微动（计时器、角色、光标所在行列的粉色高亮脉动），
+    单帧读数会随机丢几行 —— 于是**正确几何被单帧误否、垃圾几何反倒可能单帧假过**；
+    存档里 play_one 用 426.18 / 558.99 这种垃圾锚点在读，就是它们被采纳过的证据。
+    投票版要求多帧一致（读数也过同样的越界/行和=列和/可解校验），两条路都稳得多。
+    纠错预算压到 3 秒：取棋盘时要快速否掉垃圾候选，不能每个都跑满 6~20 秒。
     """
     try:
-        rows_c, cols_c, bad = _read_frame(screen, cand, cfg)
-    except BotAbort:
-        raise
+        pz = read_puzzle(screen, cand, cfg, log, archive=False, fix_budget=3.0)
+    except BotAbort as exc:
+        log(f"  {cand.rows}×{cand.cols}（格宽 {cand.cell_w:.2f}px）校验不通过"
+            f"（{str(exc)[:60]}）")
+        return False
     except Exception as exc:
         log(f"  {cand.rows}×{cand.cols}（格宽 {cand.cell_w:.2f}px）读取异常：{exc}")
         return False
-    rows = [[c[0] for c in line] for line in rows_c]
-    cols = [[c[0] for c in line] for line in cols_c]
-    problems = validate_clues(rows, cols, cand)
-    if problems:
-        fixed = fix_by_sum_constraint(rows_c, cols_c, cand, cfg, log)
-        if fixed is not None:
-            rows, cols = fixed
-            problems = []
-    if not problems:
-        # 提示条带里混进的「多余墨迹」读不出来很正常（高亮边框、界面美术）。
-        # 只要读数完整通过校验，就不该被这几团墨迹否掉整块棋盘。
-        bad = []
-    ok = not problems and not bad
-    log(f"  {cand.rows}×{cand.cols}（格宽 {cand.cell_w:.2f}px）校验{'通过 ✓' if ok else '不通过'}")
-    return ok
+    log(f"  {cand.rows}×{cand.cols}（格宽 {cand.cell_w:.2f}px）校验通过 ✓"
+        f"（行和={sum(pz.row_sums)}）")
+    return True
 
 
 def resolve_geometry(screen: Screen, cfg: Config, log=print,
@@ -3254,6 +3447,28 @@ def resolve_geometry(screen: Screen, cfg: Config, log=print,
         if attempt < attempts:
             log(f"  画面可能还没稳定，稍后再抓一帧重试（{attempt}/{attempts}）…")
             time.sleep(0.8)
+    # ★ 2026-10-01 真机：**全部候选都没过校验**时把现场帧 + 候选表存下来。
+    #   取棋盘时逐候选校验故意不存帧（一次好几个候选，会把 debug 刷爆），
+    #   但「全军覆没」这个现场恰恰最需要——用户机上那个 5×5 就是这么一直拿不到原始帧的。
+    #   30 秒最多存一次：acquire_board 会反复重试，不节流会把存档刷爆。
+    global _LAST_RESFAIL
+    if not getattr(screen, "is_fake", False) and time.time() - _LAST_RESFAIL > 30.0:
+        _LAST_RESFAIL = time.time()
+        try:
+            GLYPH_LIB_DIR.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            screen.grab_client().save(GLYPH_LIB_DIR / f"{stamp}_RESFAIL_frame.png")
+            (GLYPH_LIB_DIR / f"{stamp}_RESFAIL_data.json").write_text(json.dumps({
+                "cands": [{"rows": c.rows, "cols": c.cols, "cell": round(c.cell_w, 2),
+                           "x1": round(c.x1, 1), "y1": round(c.y1, 1)} for c in (cands or [])],
+                "cfg_geom": (None if cfg.geom is None else {
+                    "rows": cfg.geom.rows, "cols": cfg.geom.cols,
+                    "cell": round(cfg.geom.cell_w, 2),
+                    "x1": round(cfg.geom.x1, 1), "y1": round(cfg.geom.y1, 1)}),
+            }, ensure_ascii=False, indent=1), encoding="utf-8")
+            log(f"  [存档] 定位失败的现场已存到 debug/glyph_verified/{stamp}_RESFAIL_*")
+        except Exception as exc:
+            log(f"  [存档] 定位失败现场存盘失败（不影响流程）：{exc}")
     if cands:
         log("  候选都没通过校验（可能画面不是棋盘，或提示数字被涂灰了）")
         log("  先不硬读：继续等画面稳定——拿没校验过的旧几何去读，会把本关误判成失败并重置")
@@ -3961,21 +4176,20 @@ def _special_line_weakest(img: Image.Image) -> float:
 
 def _special_tile_field_lines(img: Image.Image,
                               info: Optional[Dict[str, object]] = None) -> bool:
-    """眼前是不是特别谜题的那块 5×5 方块阵？（三条正面判据一起过才算）
+    """眼前是不是特别谜题的那块 5×5 方块阵？
 
     ① 8 条内部格线里明显的 ≥ `SPECIAL_MIN_LINES_WITH_PLATES` 条；
-    ② 8 条里**最弱**的那条 > `SPECIAL_LINES_WEAKEST` —— 这条是关键：解开几格之后画作与画作
-       之间的分隔线很淡（一个灰挡板都没有时只剩最弱 ~12），而关卡内「关卡完成」那一屏（棋盘
-       填满）最弱只有 10.2，正好被这条挡在外面；
-    ③ 画面里**检不出棋盘**（`auto_detect_candidates`）——「关卡完成」那一屏棋盘还在眼前，
-       棋盘自己的格线会叠在这套坐标上，光看格线是分不开的，必须看有没有棋盘。
+    ② 画面里**检不出棋盘**（`auto_detect_candidates`）——「关卡完成」那一屏棋盘还在眼前，
+       棋盘自己的格线会叠在这套坐标上，光看格线是分不开的，必须看有没有棋盘；
+    ③ 方块阵里不能铺满黄底（`n_bg <= SPECIAL_MAX_BG`）；
+    ④ 一个灰挡板都没有（这一页基本打完了）时，还要「8 条里**最弱**的那条 >
+       `SPECIAL_LINES_WEAKEST`」且 8 条全明显 —— 只有这时候才需要它：光看格线分不开
+       「方块阵全解开」和「关卡内关卡完成那一屏」。
 
     info 可以复用调用方已经算好的方块阵统计（省一次 25 格扫描）。
     """
     strong, total = _special_boundary_lines(img)
     if total < 4 or strong < SPECIAL_MIN_LINES_WITH_PLATES:
-        return False
-    if _special_line_weakest(img) <= SPECIAL_LINES_WEAKEST:
         return False
     try:
         if auto_detect_candidates(img):
@@ -3988,10 +4202,13 @@ def _special_tile_field_lines(img: Image.Image,
         info = detect_special_grid(img)
     if info is None or int(info["n_bg"]) > SPECIAL_MAX_BG:
         return False
-    if int(info["n_plate"]) < SPECIAL_MIN_PLATES and strong < total:
-        # 一个灰挡板都没有（这一页基本打完了）：这种时候要求 8 条全明显，别把「棋盘填满」那种
-        # 只剩一点点线索的画面放进来
-        return False
+    if int(info["n_plate"]) < SPECIAL_MIN_PLATES:
+        # 一个灰挡板都没有（这一页基本打完了）：这种时候才用最弱格线 + 8 条全明显这两条硬判据。
+        # ⚠ 有灰挡板时**不能**再要求「最弱那条 > 11」：真机实测这一屏的最弱格线会在 9.9~12.5
+        #   之间飘（画作格之间的淡分隔线本来就细），按 11 卡会把整屏误判成普通列表。灰「?」
+        #   挡板本身是铁证：棋盘上不可能出现 79% 都是中性灰的格子，再加「检不出棋盘」已经够了。
+        if _special_line_weakest(img) <= SPECIAL_LINES_WEAKEST or strong < total:
+            return False
     return True
 
 
@@ -4167,13 +4384,15 @@ def _flip_list_page(screen: Screen, stop: StopController, pt: Tuple[float, float
     """点一下列表两侧的翻页箭头；返回是否真的翻过去了（翻不动=已经是第一/最后一页）。
 
     box 给的是「用哪一块画面判断页翻没翻」：普通列表用缩略图区，特别谜题用方块阵。
+    pt 是 1280×720 基准坐标（PAGE_RIGHT_POINT / SPECIAL_PAGE_RIGHT_POINT），这里统一
+    按窗口尺寸换算成客户区像素再点——漏了这一步「翻页」会点进关卡卡片本身。
     """
     for _ in range(max(1, tries)):
         before = (_special_grid_gray(screen.grab_client()) if box is not None
                   else _list_thumb_gray(screen.grab_client()))
         screen.ensure_foreground()
         stop.check()
-        screen.click_client(*pt)
+        screen.click_client(*_ui_point(screen, *pt))
         stop.sleep(0.95)
         after = (_special_grid_gray(screen.grab_client()) if box is not None
                  else _list_thumb_gray(screen.grab_client()))
@@ -4208,6 +4427,9 @@ _READ_FAIL_BY_PT: Dict[Tuple[float, float], int] = {}
 # 用一次就清，最多让脚本多绕一格，不会漏打。
 _AVOID_FIRST_PICK = False
 _LAST_PICKED_PT: Optional[Tuple[float, float]] = None
+# 上次存「定位失败现场」的时间（见 resolve_geometry）：acquire_board 会反复重试，
+# 30 秒最多存一次，免得把 debug/glyph_verified 刷爆。
+_LAST_RESFAIL = 0.0
 
 
 def _reset_page_cache(gray: np.ndarray) -> None:
@@ -4360,7 +4582,7 @@ def scan_level_list(screen: Screen, cfg: Config, stop: StopController, log=print
         log(f"  本页签里没有要打的关卡了，换到 Lv{tab} 页签找…")
         screen.ensure_foreground()
         stop.check()
-        screen.click_client(tx, ty)
+        screen.click_client(*_ui_point(screen, tx, ty))
         stop.sleep(1.1)
         status, pt = current_page_task()
         if status in ("play", "not_list"):
@@ -4550,9 +4772,18 @@ def _board_ready(screen: Screen, cfg: Config, img: Image.Image, log=print) -> bo
         cands = []
     if cfg.geom is not None and any(_same_board(c, cfg.geom) for c in cands):
         return True
+    if not cands:
+        # ★ 2026-10-01 真机 5×5 事故：整幅扫不到棋盘（小棋盘被房间/立绘信号稀释）时，
+        #   旧逻辑直接落到「拿旧配置 board_present 干等」——**根本走不到 resolve_geometry**，
+        #   于是配置一过期就永远认不出棋盘（用户日志里反复「校验不通过」的现场就是它）。
+        #   这里补上局部窗口兜底（不做 OCR，1~2 秒），让下面的「读一帧校验」能正常触发。
+        try:
+            cands = auto_detect_candidates_local(img)
+        except Exception:
+            cands = []
     # 网格和配置对不上：多半是换了难度页签（5×5 ↔ 15×15 ↔ 20×20），
     # 先确认候选确实是棋盘，再走一次「读一帧校验」来换几何
-    for c in cands[:2]:
+    for c in cands:
         try:
             if not board_present(screen, c)[0]:
                 continue
