@@ -8,13 +8,13 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## ⬇️ 下载（Windows，免安装）
 
-**[点这里直接下载 MikuNonogramBot-1.0.12-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.12-win64.zip)**（约 32 MB，自带面板，不用装 Python）
+**[点这里直接下载 MikuNonogramBot-1.0.13-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.13-win64.zip)**（约 32 MB，自带面板，不用装 Python）
 
 - 想下最新版永远用这个地址：<https://github.com/angaotian/MikuNonogramBot/releases/latest>
-- 只想看代码：[MikuNonogramBot-1.0.12-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.12-src.zip)
+- 只想看代码：[MikuNonogramBot-1.0.13-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.13-src.zip)
 - 下载后：**解压 → 双击 `启动面板.bat` → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」**
 
-> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.12**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
+> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.13**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
 
 ## 长什么样
 
@@ -43,7 +43,7 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## 下载即用（推荐，不需要装 Python）
 
-1. 下载 **`MikuNonogramBot-1.0.12-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
+1. 下载 **`MikuNonogramBot-1.0.13-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
 2. 解压到任意目录
 3. 双击 **`启动面板.bat`** → 面板窗口打开 → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」
 
@@ -163,8 +163,8 @@ python miku_logic_paint_bot.py --dry-run     :: 只识别+求解，不点游戏�
 
 下载包里有个 **`宇宙声明.txt`**，就三件事，跑不顺的时候先看它：
 
-1. **极个别关卡识别不出来** —— 目前已知读不通的是 **Lv3-016**、**Lv3-064** 这两关（提示数字字太小）；
-   脚本自己跳过、先去打别的关，想让它回头再试就重启脚本。真碰上就用**你的超级大脑亲自征服它**——一两关，手点比等快 :)
+1. **极个别关卡识别不出来** —— 只有 2、3 关有问题（例如 **Lv3-016**、**Lv3-064**，提示数字字太小），
+   作者也没解决；建议自己动手填一下，问题关卡不多。
 2. **遇到「涂了一半 → 一直重置 → 退出」的循环** —— 直接停掉脚本再启动一次（面板「停止」→「连续闯关」）；
    它跳过一关之前会先确认那一关盘面干净，不会留下没打完的棋。
 3. **游戏窗口与分辨率要求** —— 窗口要在前台；推荐 1920×1080 / 1280×720，其它分辨率先 `--calibrate`；
