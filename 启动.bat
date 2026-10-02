@@ -31,6 +31,13 @@ if errorlevel 1 (
 
 
 
+rem 主脚本不在就没必要往下跑，先把话说清楚
+if not exist "miku_logic_paint_bot.py" (
+  echo [错误] 没找到 miku_logic_paint_bot.py，请把本脚本放在程序文件夹里运行。
+  pause
+  exit /b 1
+)
+
 rem ==== 可选：校准模式  启动.bat 校准 ====
 
 if /i "%~1"=="校准" goto calibrate

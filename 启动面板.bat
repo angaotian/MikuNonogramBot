@@ -155,6 +155,15 @@ if defined MISS (
   pause >nul
 )
 
+rem 面板本体不在就直接说清楚，别让“双击了没反应”
+if not exist "MikuPanel.exe" (
+  echo.
+  echo [错误] 没找到 MikuPanel.exe，请把本脚本放回程序文件夹再运行。
+  echo        如果文件不见了，多半是被杀毒软件删了，重新解压一次即可。
+  pause
+  exit /b 1
+)
+
 echo 正在启动面板…
 start "" "MikuPanel.exe"
 exit /b 0

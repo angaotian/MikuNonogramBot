@@ -8,13 +8,13 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## ⬇️ 下载（Windows，免安装）
 
-**[点这里直接下载 MikuNonogramBot-1.0.11-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.11-win64.zip)**（约 32 MB，自带面板，不用装 Python）
+**[点这里直接下载 MikuNonogramBot-1.0.12-win64.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.12-win64.zip)**（约 32 MB，自带面板，不用装 Python）
 
 - 想下最新版永远用这个地址：<https://github.com/angaotian/MikuNonogramBot/releases/latest>
-- 只想看代码：[MikuNonogramBot-1.0.11-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.11-src.zip)
+- 只想看代码：[MikuNonogramBot-1.0.12-src.zip](https://github.com/angaotian/MikuNonogramBot/releases/latest/download/MikuNonogramBot-1.0.12-src.zip)
 - 下载后：**解压 → 双击 `启动面板.bat` → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」**
 
-> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.11**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
+> 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v1.0.12**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
 
 ## 长什么样
 
@@ -43,7 +43,7 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 
 ## 下载即用（推荐，不需要装 Python）
 
-1. 下载 **`MikuNonogramBot-1.0.11-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
+1. 下载 **`MikuNonogramBot-1.0.12-win64.zip`**（上面那个直链，或页面上 Releases 里的 Assets）
 2. 解压到任意目录
 3. 双击 **`启动面板.bat`** → 面板窗口打开 → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」
 
@@ -174,6 +174,10 @@ python miku_logic_paint_bot.py --dry-run     :: 只识别+求解，不点游戏�
 
 双击 **`卸载.bat`**，按提示输 `Y` 确认即可。它会：
 
+- 先做两道安全检查：这个目录里必须确实有 `miku_logic_paint_bot.py`，且不能是桌面 / 下载 /
+  文档 / 用户目录 / `%TEMP%` / 盘符根目录 / `Windows` / `Program Files` 这类位置 ——
+  不通过就直接拒绝执行并说明原因，**绝不误删**；
+- 动手前把**将要删除的绝对路径**逐条列出来（没有的项写「（无）」），你确认了才删；
 - 关掉正在跑的 `MikuPanel.exe` / 本项目 Python 进程；
 - 删掉程序文件夹（含 `debug/` 截图、校准配置、`*.new` 临时备份）；
 - 扫 `%TEMP%` 里本程序遗留的 `_MEI*` 临时目录并清掉（只删带本项目标记的那些）。
