@@ -49,7 +49,6 @@ COMMON_FILES = [
     "tools/panel_verify.py",
     "tools/make_release.py",
     "tools/gh_release.py",
-    "tools/make_readme_images.py",
 ]
 # 只有运行包带（别人下载解压即可用）
 RUN_FILES = ["MikuPanel.exe"]
@@ -83,22 +82,6 @@ Windows 上给《Hatsune Miku Logic Paint S》里那套数织（nonogram / 数�
 - 下载后：**解压 → 双击 `启动面板.bat` → 把游戏停在关卡列表或棋盘上 → 点「连续闯关」**
 
 > 在 GitHub 网页上找不到下载位置的话：页面**右侧边栏**的 **Releases → v{version}**，或页面底部 **Releases** 区域，点进去最下面就是 **Assets**（两个 zip）。
-
-## 长什么样
-
-**控制面板**（不想开面板也可以纯命令行跑）：
-
-![控制面板](docs/images/panel.png)
-
-**它自己怎么跑完一关**（全自动，不用你动手）：
-
-![三步流程](docs/images/flow.png)
-
-**两种关卡列表它都认得**（普通谜题 / 特别谜题，不用你切换）：
-
-![两种关卡列表](docs/images/list-modes.png)
-
-> 上面都是示意图，用脚本画的（`tools/make_readme_images.py`），不是游戏截图——游戏画面与美术版权归厂商所有。
 
 ## 它能做什么
 
@@ -227,9 +210,9 @@ python miku_logic_paint_bot.py --dry-run     :: 只识别+求解，不点游戏�
 - 命令行 `python debug\\probe_special_list.py --live`（那是开发用的探针，**不随发布包提供**，只在本项目的开发目录里）
   可以只读地看一眼：布局判定、25 格逐格判定、下一步会点哪一格（不点击）。
 
-## 遇到问题先看《宇宙声明》
+## 遇到问题先看《声明》
 
-下载包里有个 **`宇宙声明.txt`**，就三件事，跑不顺的时候先看它：
+下载包里有个 **`声明.txt`**，就三件事，跑不顺的时候先看它：
 
 1. **极个别关卡识别不出来** —— 只有 2、3 关有问题（例如 **Lv3-016**、**Lv3-064**，提示数字字太小），
    作者也没解决；建议自己动手填一下，问题关卡不多。
@@ -334,13 +317,15 @@ SOFTWARE.
 
 CHANGELOG = """# 更新记录
 
-## v1.0.13（《宇宙声明》改成作者原话）
+## v1.0.13（《声明》改成作者原话 + 去掉示意图）
 
-**只改了说明文字，功能零改动。** 第一条按作者原话重写：不再铺垫、不再罗列「已经修好什么」，
-直说只有 2、3 个关卡有问题（例如 Lv3-016、Lv3-064），建议自己动手填一下，问题关卡不多。
-README 与发布说明里同名的摘要段落同步成一样的措辞。
+**只改说明文字与包里内容，功能零改动。**
 
-脚本、面板、`启动*.bat`、`卸载.bat` 一个字没动。
+- 那份说明改名为 **`声明.txt`**（标题《宇宙声明》→《声明》），第一条按作者原话重写：不铺垫、
+  不罗列「已经修好什么」，直说只有 2、3 个关卡有问题（例如 Lv3-016、Lv3-064），建议自己动手填一下。
+  README 与发布说明里的同名摘要同步成一样的措辞。
+- **去掉三张示意图**：发布包里不再带 `docs/images/`，README 里也不再嵌图。
+- 脚本、面板、`启动*.bat`、`卸载.bat` 一个字没动。
 
 ## v1.0.12（卸载更安全 + 启动少踩坑）
 
@@ -510,7 +495,7 @@ README 与发布说明里同名的摘要段落同步成一样的措辞。
 - 安全闸门：点击前确认「眼前是棋盘」、盲点不落在棋盘上、过关后走菜单退出而不是乱点
 """
 
-UNIVERSE_TXT = """《宇宙声明》
+UNIVERSE_TXT = """《声明》
 
 一、极个别关卡识别不出来
 
@@ -560,8 +545,10 @@ RELEASE_NOTES = """## 下载
 
 ## 本版（v{version}）改了什么
 
-- **更新《宇宙声明》**：第一条按作者原话改写 —— 只有 2、3 关有问题（例如 Lv3-016、Lv3-064），
-  建议自己动手填一下，去掉多余的铺垫。README 与发布说明里的同名摘要同步成一样的措辞。
+- **说明改名 + 更新**：那份说明由《宇宙声明》改名为 **《声明》**（文件 `声明.txt`），
+  第一条按作者原话改写 —— 只有 2、3 关有问题（例如 Lv3-016、Lv3-064），建议自己动手填一下，
+  去掉多余的铺垫。README 与发布说明里的同名摘要同步成一样的措辞。
+- **去掉三张示意图**：发布包里不再带 `docs/images/`，README 里也不再嵌图。
 - 除说明文字外，**功能零改动**（脚本、面板、启动/卸载脚本都没动）。
 
 ## 上一版（v1.0.12）改了什么
@@ -614,9 +601,9 @@ python miku_logic_paint_bot.py --selftest
 个别关卡的小字号提示数字会被 OCR 读错（游戏侧表现是某行/列始终不变灰）。
 脚本会三帧校验 + 纠错，仍读不通就跳过该关去打别的，不会乱涂。详见 README 的「已知限制」。
 
-## 先看这一份：《宇宙声明》.txt
+## 先看这一份：《声明》.txt
 
-包里有一份 `宇宙声明.txt`，就三件事：
+包里有一份 `声明.txt`，就三件事：
 
 1. **极个别关卡识别不出来** —— 只有 2、3 关有问题（例如 **Lv3-016**、**Lv3-064**，提示数字字太小），
    作者也没解决；建议自己动手填一下，问题关卡不多。
@@ -693,27 +680,14 @@ def build_src_package(dst: Path, version: str, do_git: bool) -> None:
         print("  源码树：%s" % dst)
 
 
-def render_images(dst: Path) -> None:
-    """给 README 生成示意图（调 tools/make_readme_images.py，纯 PIL 画的）。"""
-    out = dst / "docs" / "images"
-    script = Path(__file__).resolve().parent / "make_readme_images.py"
-    r = subprocess.run([sys.executable, str(script), str(out)], cwd=str(ROOT),
-                       capture_output=True, text=True)
-    if r.returncode != 0:
-        print("  [警告] 示意图没生成：%s" % (r.stderr or r.stdout)[-200:])
-        return
-    print("  示意图：%d 张 → docs/images/" % len(list(out.glob("*.png"))))
-
-
 def write_common_docs(dst: Path, version: str) -> None:
-    render_images(dst)
     (dst / "README.md").write_text(
         README.format(title=TITLE, name=NAME, owner=OWNER, version=version), encoding="utf-8")
     (dst / "LICENSE").write_text(LICENSE.replace("{year}", "2026").replace("{name}", NAME),
                                  encoding="utf-8")
     (dst / "CHANGELOG.md").write_text(CHANGELOG.format(version=version), encoding="utf-8")
-    # 宇宙声明：带 BOM，Windows 记事本双击也不乱码
-    (dst / "宇宙声明.txt").write_text(UNIVERSE_TXT, encoding="utf-8-sig")
+    # 声明：带 BOM，Windows 记事本双击也不乱码
+    (dst / "声明.txt").write_text(UNIVERSE_TXT, encoding="utf-8-sig")
     docs = dst / "docs"
     docs.mkdir(exist_ok=True)
     (docs / "发布说明.md").write_text(
@@ -807,7 +781,7 @@ python tools\\panel_verify.py                :: 内容物：通过 / 副本：�
 - [ ] `--selftest` 通过（证明包里的脚本自洽、依赖齐）
 - [ ] `panel_verify` 通过（证明包里的 exe 与包里的真源一致）
 - [ ] 两个 zip 都已生成
-- [ ] 包里三份说明都在：`README.md`（含 docs/images 三张示意图）、`宇宙声明.txt`、`CHANGELOG.md`
+- [ ] 包里三份说明都在：`README.md`、`声明.txt`、`CHANGELOG.md`
 - [ ] 没有把 `debug/`、`build/`、`.pylibs/`、`.backup/` 带进仓库（`.gitignore` 已经挡住）
 - [ ] 仓库里没有个人路径（本次生成时已自动替换开发记录里的绝对路径）
 """
